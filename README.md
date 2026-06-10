@@ -1,7 +1,7 @@
 # PostgreSQL
 
 ```
-podman exec -it wa-send-v2-postgres psql -U wa-send-v2 -d wa-send-v2
+podman volume create wa-send-v2-pgdata
 ```
 
 ```
@@ -14,4 +14,9 @@ podman run -d \
                        -p 5432:5432 \
                        --restart unless-stopped \
                        docker.io/library/postgres:17
+```
+
+Accesso istanza psql
+```
+podman exec -it wa-send-v2-postgres psql -U wa-send-v2 -d wa-send-v2
 ```
