@@ -31,14 +31,16 @@ import { Badge } from "@/components/ui/badge"
 
 const API_BASE = "/api"
 
-interface Message {
+interface RigaMessaggio {
   id: number
-  recipient: string
-  content: string
-  status: "PENDING" | "SENT" | "FAILED"
-  error: string | null
-  createdAt: string
-  updatedAt: string
+  testo: string
+  nominativo: string
+  cellulare: string
+  link: string
+  codice: string
+  idApp: string
+  stato: string
+  idImportMessaggio: number
 }
 
 interface WhatsAppStatus {
@@ -79,25 +81,25 @@ function StatusIndicator({ status }: { status: WhatsAppStatus["status"] }) {
   )
 }
 
-function StatusBadge({ status }: { status: Message["status"] }) {
-  const config = {
+function StatusBadge({ stato }: { stato: string }) {
+  const config: Record<string, { variant: "warning" | "success" | "danger"; icon: typeof Clock; label: string }> = {
     PENDING: {
-      variant: "warning" as const,
+      variant: "warning",
       icon: Clock,
       label: "In attesa",
     },
     SENT: {
-      variant: "success" as const,
+      variant: "success",
       icon: CheckCircle2,
       label: "Inviato",
     },
     FAILED: {
-      variant: "danger" as const,
+      variant: "danger",
       icon: XCircle,
       label: "Fallito",
     },
   }
-  const c = config[status]
+  const c = config[stato] || config.PENDING
   const Icon = c.icon
 
   return (
@@ -109,7 +111,7 @@ function StatusBadge({ status }: { status: Message["status"] }) {
 }
 
 export default function App() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<RigaMessaggio[]>([])
   const [waStatus, setWaStatus] = useState<WhatsAppStatus>({
     status: "disconnected",
     qrCode: null,
@@ -128,7 +130,7 @@ export default function App() {
           setWaStatus(await res.json())
         }
       } catch {
-        // Backend not available
+        // Backend non disponibile
       }
     }
     poll()
@@ -136,7 +138,7 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch messages on mount
+  // Fetch messaggi al mount
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -145,7 +147,7 @@ export default function App() {
           setMessages(await res.json())
         }
       } catch {
-        // Backend not available
+        // Backend non disponibile
       }
     }
     fetchMessages()
@@ -166,7 +168,7 @@ export default function App() {
         setMessages(data.messages)
       }
     } catch (err) {
-      console.error("Upload failed:", err)
+      console.error("Upload fallito:", err)
     } finally {
       setUploading(false)
     }
@@ -177,22 +179,22 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/messages/send`, { method: "POST" })
       if (res.ok) {
-        // Refresh messages after sending
+        // Aggiorna messaggi dopo invio
         const msgRes = await fetch(`${API_BASE}/messages`)
         if (msgRes.ok) {
           setMessages(await msgRes.json())
         }
       }
     } catch (err) {
-      console.error("Send failed:", err)
+      console.error("Invio fallito:", err)
     } finally {
       setSending(false)
     }
   }, [])
 
-  const pendingCount = messages.filter((m) => m.status === "PENDING").length
-  const sentCount = messages.filter((m) => m.status === "SENT").length
-  const failedCount = messages.filter((m) => m.status === "FAILED").length
+  const pendingCount = messages.filter((m) => m.stato === "PENDING").length
+  const sentCount = messages.filter((m) => m.stato === "SENT").length
+  const failedCount = messages.filter((m) => m.stato === "FAILED").length
 
   return (
     <div className="min-h-screen bg-background">
@@ -210,7 +212,7 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-        {/* QR Code Card — shown when connecting */}
+        {/* QR Code Card — visibile quando in connessione */}
         {waStatus.status === "connecting" && waStatus.qrCode && (
           <Card className="border-warning/30 bg-warning/5 animate-in fade-in duration-500">
             <CardHeader className="text-center">
@@ -313,7 +315,7 @@ export default function App() {
           </Card>
         </div>
 
-        {/* Send Button */}
+        {/* Bottone Invio */}
         {messages.length > 0 && pendingCount > 0 && (
           <div className="flex justify-end animate-in slide-in-from-bottom-2 duration-300">
             <Button
@@ -335,7 +337,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Messages Table */}
+        {/* Tabella Messaggi */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -359,9 +361,11 @@ export default function App() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>Destinatario</TableHead>
-                      <TableHead className="min-w-[300px]">Messaggio</TableHead>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Nominativo</TableHead>
+                      <TableHead>Cellulare</TableHead>
+                      <TableHead className="min-w-[250px]">Testo</TableHead>
+                      <TableHead>Codice</TableHead>
                       <TableHead className="w-28 text-center">Stato</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -375,19 +379,20 @@ export default function App() {
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {msg.id}
                         </TableCell>
-                        <TableCell className="font-medium font-mono">
-                          {msg.recipient}
+                        <TableCell className="font-medium">
+                          {msg.nominativo}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {msg.cellulare}
                         </TableCell>
                         <TableCell className="max-w-md">
-                          <p className="truncate">{msg.content}</p>
-                          {msg.error && (
-                            <p className="mt-1 text-xs text-danger truncate">
-                              ⚠ {msg.error}
-                            </p>
-                          )}
+                          <p className="truncate">{msg.testo}</p>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {msg.codice}
                         </TableCell>
                         <TableCell className="text-center">
-                          <StatusBadge status={msg.status} />
+                          <StatusBadge stato={msg.stato} />
                         </TableCell>
                       </TableRow>
                     ))}

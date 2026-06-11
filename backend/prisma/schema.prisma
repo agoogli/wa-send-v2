@@ -7,20 +7,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MessageStatus {
-  PENDING
-  SENT
-  FAILED
+/// Rappresenta un singolo import di file HTML con messaggi
+model ImportMessaggio {
+  id      Int      @id @default(autoincrement())
+  created DateTime @default(now())
+
+  righe RigaMessaggio[]
+
+  @@map("import_messaggi")
 }
 
-model Message {
-  id        Int           @id @default(autoincrement())
-  recipient String
-  content   String
-  status    MessageStatus @default(PENDING)
-  error     String?
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+/// Singola riga di messaggio estratta da un import HTML
+model RigaMessaggio {
+  id                Int    @id @default(autoincrement())
+  testo             String
+  nominativo        String
+  cellulare         String
+  link              String @default("")
+  codice            String @default("") @db.VarChar(255)
+  idApp             String @default("") @map("id_app") @db.VarChar(255)
+  stato             String @default("PENDING") @db.VarChar(50)
 
-  @@map("messages")
+  idImportMessaggio Int            @map("id_import_messaggio")
+  importMessaggio   ImportMessaggio @relation(fields: [idImportMessaggio], references: [id], onDelete: Cascade)
+
+  @@map("righe_messaggi")
+}
+
+/// Sessione WhatsApp persistente su database.
+/// Memorizza le credenziali e le chiavi di crittografia di Baileys
+/// per evitare la ri-autenticazione via QR code al riavvio dell'app.
+model Sessione {
+  id    String @id            // chiave: "creds" oppure "pre-key-1", "session-xxx", ecc.
+  data  String @db.Text       // JSON serializzato del valore (creds, signal keys, ecc.)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt     @map("updated_at")
+
+  @@map("sessioni")
 }

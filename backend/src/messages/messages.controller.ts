@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -16,7 +17,7 @@ export class MessagesController {
   @UseInterceptors(FileInterceptor('file'))
   async upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
-      return { error: 'No file provided' };
+      return { error: 'Nessun file fornito' };
     }
 
     const html = file.buffer.toString('utf-8');
@@ -24,12 +25,19 @@ export class MessagesController {
   }
 
   @Get()
-  async findAll() {
-    return this.messagesService.findAll();
+  async findAll(@Query('importId') importId?: string) {
+    const id = importId ? parseInt(importId, 10) : undefined;
+    return this.messagesService.findAll(id);
+  }
+
+  @Get('imports')
+  async findAllImports() {
+    return this.messagesService.findAllImports();
   }
 
   @Post('send')
-  async sendAll() {
-    return this.messagesService.sendAll();
+  async sendAll(@Query('importId') importId?: string) {
+    const id = importId ? parseInt(importId, 10) : undefined;
+    return this.messagesService.sendAll(id);
   }
 }

@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
-import { MessageStatus } from '@prisma/client';
 import * as cheerio from 'cheerio';
 
 export interface ParsedMessage {
-  recipient: string;
-  content: string;
+  testo: string;
+  nominativo: string;
+  cellulare: string;
+  link: string;
+  codice: string;
+  idApp: string;
 }
 
 @Injectable()
@@ -19,10 +22,10 @@ export class MessagesService {
   ) {}
 
   /**
-   * Parse an HTML file containing a table with messages.
-   * Expected format: <table> with rows where:
-   *   - Column 1: phone number (recipient)
-   *   - Column 2: message content
+   * Parsa un file HTML contenente una tabella con i messaggi.
+   * Formato atteso: <table> con righe dove le colonne sono:
+   *   1: nominativo, 2: cellulare, 3: testo, 4: link (opz),
+   *   5: codice (opz), 6: idApp (opz)
    */
   parseHtml(html: string): ParsedMessage[] {
     const $ = cheerio.load(html);
@@ -30,76 +33,107 @@ export class MessagesService {
 
     $('table tr').each((_index, row) => {
       const cells = $(row).find('td');
-      if (cells.length >= 2) {
-        const recipient = $(cells[0]).text().trim();
-        const content = $(cells[1]).text().trim();
-        if (recipient && content) {
-          messages.push({ recipient, content });
+      if (cells.length >= 3) {
+        const nominativo = $(cells[0]).text().trim();
+        const cellulare = $(cells[1]).text().trim();
+        const testo = $(cells[2]).text().trim();
+        const link = cells.length > 3 ? $(cells[3]).text().trim() : '';
+        const codice = cells.length > 4 ? $(cells[4]).text().trim() : '';
+        const idApp = cells.length > 5 ? $(cells[5]).text().trim() : '';
+
+        if (cellulare && testo) {
+          messages.push({ testo, nominativo, cellulare, link, codice, idApp });
         }
       }
     });
 
-    this.logger.log(`Parsed ${messages.length} messages from HTML`);
+    this.logger.log(`Parsati ${messages.length} messaggi dal file HTML`);
     return messages;
   }
 
   /**
-   * Upload and parse HTML, then save messages to the database.
+   * Upload e parsing HTML, poi salva i messaggi nel database
+   * creando un nuovo ImportMessaggio con le sue RigheMessaggio.
    */
   async uploadAndParse(html: string) {
     const parsed = this.parseHtml(html);
 
-    // Clear old messages before importing new ones
-    await this.prisma.message.deleteMany();
-
-    const created = await this.prisma.message.createMany({
-      data: parsed.map((m) => ({
-        recipient: m.recipient,
-        content: m.content,
-        status: MessageStatus.PENDING,
-      })),
+    const importRecord = await this.prisma.importMessaggio.create({
+      data: {
+        righe: {
+          create: parsed.map((m) => ({
+            testo: m.testo,
+            nominativo: m.nominativo,
+            cellulare: m.cellulare,
+            link: m.link,
+            codice: m.codice,
+            idApp: m.idApp,
+            stato: 'PENDING',
+          })),
+        },
+      },
+      include: {
+        righe: true,
+      },
     });
 
     return {
-      imported: created.count,
-      messages: await this.prisma.message.findMany({
-        orderBy: { id: 'asc' },
-      }),
+      imported: importRecord.righe.length,
+      importId: importRecord.id,
+      messages: importRecord.righe,
     };
   }
 
   /**
-   * Retrieve all messages from the database.
+   * Recupera tutte le righe messaggio, opzionalmente filtrate per import.
    */
-  async findAll() {
-    return this.prisma.message.findMany({ orderBy: { id: 'asc' } });
+  async findAll(importId?: number) {
+    const where = importId ? { idImportMessaggio: importId } : {};
+    return this.prisma.rigaMessaggio.findMany({
+      where,
+      orderBy: { id: 'asc' },
+    });
   }
 
   /**
-   * Send all pending messages via WhatsApp.
+   * Recupera tutti gli import.
    */
-  async sendAll() {
-    const pending = await this.prisma.message.findMany({
-      where: { status: MessageStatus.PENDING },
+  async findAllImports() {
+    return this.prisma.importMessaggio.findMany({
+      orderBy: { id: 'desc' },
+      include: {
+        _count: { select: { righe: true } },
+      },
     });
+  }
+
+  /**
+   * Invia tutti i messaggi PENDING di un determinato import via WhatsApp.
+   */
+  async sendAll(importId?: number) {
+    const where: Record<string, unknown> = { stato: 'PENDING' };
+    if (importId) {
+      where.idImportMessaggio = importId;
+    }
+
+    const pending = await this.prisma.rigaMessaggio.findMany({ where });
 
     const results = [];
 
     for (const msg of pending) {
-      const result = await this.whatsapp.sendMessage(msg.recipient, msg.content);
+      const result = await this.whatsapp.sendMessage(msg.cellulare, msg.testo);
 
-      await this.prisma.message.update({
+      const newStato = result.success ? 'SENT' : 'FAILED';
+
+      await this.prisma.rigaMessaggio.update({
         where: { id: msg.id },
-        data: {
-          status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
-          error: result.error || null,
-        },
+        data: { stato: newStato },
       });
 
       results.push({
         id: msg.id,
-        recipient: msg.recipient,
-        status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
+        cellulare: msg.cellulare,
+        stato: newStato,
         error: result.error,
       });
     }
