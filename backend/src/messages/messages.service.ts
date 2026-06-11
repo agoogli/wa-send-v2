@@ -23,26 +23,42 @@ export class MessagesService {
   ) {}
 
   /**
-   * Parsa un file HTML contenente una tabella con i messaggi.
-   * Formato atteso: <table> con righe dove le colonne sono:
-   *   1: nominativo, 2: cellulare, 3: testo, 4: link (opz),
-   *   5: codice (opz), 6: idApp (opz)
+   * Parsa un file HTML (formato SMS.html) contenente una tabella con i messaggi.
+   * Ordine colonne nel file:
+   *   0: Messaggio    → testo
+   *   1: Cliente      → nominativo
+   *   2: Codice       → codice
+   *   3: Da pagare     (ignorata)
+   *   4: Scuola        (ignorata)
+   *   5: Corso/Classe  (ignorata)
+   *   6: Classe/Sezione(ignorata)
+   *   7: Cellulare    → cellulare
+   *   8: Indirizzo     (ignorata)
+   *   9: Città         (ignorata)
+   *  10: Provincia     (ignorata)
+   *  11: Link         → link
+   *  12: ID-APP       → idApp
+   *  13: Risposta      (ignorata)
    */
   parseHtml(html: string): ParsedMessage[] {
     const $ = cheerio.load(html);
     const messages: ParsedMessage[] = [];
 
-    $('table tr').each((_index, row) => {
-      const cells = $(row).find('td');
-      if (cells.length >= 3) {
-        const nominativo = $(cells[0]).text().trim();
-        const cellulare = $(cells[1]).text().trim();
-        const testo = $(cells[2]).text().trim();
-        const link = cells.length > 3 ? $(cells[3]).text().trim() : '';
-        const codice = cells.length > 4 ? $(cells[4]).text().trim() : '';
-        const idApp = cells.length > 5 ? $(cells[5]).text().trim() : '';
+    $('table tr').each((index, row) => {
+      // Salta l'intestazione
+      if (index === 0) return;
 
-        if (cellulare && testo) {
+      const cells = $(row).find('td');
+      if (cells.length >= 8) { // Almeno fino al cellulare (indice 7)
+        const testo = $(cells[0]).text().trim();
+        const nominativo = $(cells[1]).text().trim();
+        const codice = $(cells[2]).text().trim();
+        const cellulare = $(cells[7]).text().trim();
+        const link = cells.length > 11 ? $(cells[11]).text().trim() : '';
+        const idApp = cells.length > 12 ? $(cells[12]).text().trim() : '';
+
+        // Includiamo la riga se c'è almeno un dato per poter effettuare la validazione
+        if (testo || nominativo || cellulare) {
           messages.push({ testo, nominativo, cellulare, link, codice, idApp });
         }
       }
@@ -53,24 +69,68 @@ export class MessagesService {
   }
 
   /**
+   * Valida i dati di un messaggio importato.
+   */
+  validateMessage(m: ParsedMessage): { isValid: boolean; error?: string; cleanedCellulare?: string } {
+    if (!m.testo) {
+      return { isValid: false, error: 'Testo del messaggio vuoto' };
+    }
+    if (!m.nominativo) {
+      return { isValid: false, error: 'Nominativo cliente mancante' };
+    }
+    if (!m.cellulare) {
+      return { isValid: false, error: 'Numero cellulare mancante' };
+    }
+
+    // Pulisce il numero: tiene solo cifre e il '+' iniziale
+    let clean = m.cellulare.replace(/[^\d+]/g, '');
+
+    // Normalizza numeri italiani
+    if (clean.startsWith('+39')) {
+      clean = clean.substring(1);
+    }
+    if (clean.startsWith('0039')) {
+      clean = '39' + clean.substring(4);
+    }
+
+    // Se inizia con 3 ed è lungo 9 o 10 cifre (tipico cellulare italiano senza prefisso int.), aggiunge il prefisso 39
+    if (/^3\d{8,9}$/.test(clean)) {
+      clean = '39' + clean;
+    }
+
+    // Verifica formato: deve essere composto solo da cifre (8-15 cifre)
+    if (!/^\d{8,15}$/.test(clean)) {
+      return { isValid: false, error: `Numero cellulare non valido: "${m.cellulare}"` };
+    }
+
+    return { isValid: true, cleanedCellulare: clean };
+  }
+
+  /**
    * Upload e parsing HTML, poi salva i messaggi nel database
    * creando un nuovo ImportMessaggio con le sue RigheMessaggio.
    */
   async uploadAndParse(html: string) {
     const parsed = this.parseHtml(html);
 
+    const righeData = parsed.map((m) => {
+      const val = this.validateMessage(m);
+      return {
+        testo: m.testo,
+        nominativo: m.nominativo,
+        cellulare: val.cleanedCellulare || m.cellulare,
+        link: m.link,
+        codice: m.codice,
+        idApp: m.idApp,
+        stato: val.isValid ? StatoMessaggio.IMPORTATO : StatoMessaggio.ERRORE,
+        errore: val.error || null,
+      };
+    });
+
     const importRecord = await this.prisma.importMessaggio.create({
       data: {
         righe: {
-          create: parsed.map((m) => ({
-            testo: m.testo,
-            nominativo: m.nominativo,
-            cellulare: m.cellulare,
-            link: m.link,
-            codice: m.codice,
-            idApp: m.idApp,
-            stato: StatoMessaggio.IMPORTATO,
-          })),
+          create: righeData,
         },
       },
       include: {
@@ -79,7 +139,8 @@ export class MessagesService {
     });
 
     return {
-      imported: importRecord.righe.length,
+      imported: importRecord.righe.filter((r) => r.stato === StatoMessaggio.IMPORTATO).length,
+      errors: importRecord.righe.filter((r) => r.stato === StatoMessaggio.ERRORE).length,
       importId: importRecord.id,
       messages: importRecord.righe,
     };

@@ -41,6 +41,7 @@ interface RigaMessaggio {
   codice: string
   idApp: string
   stato: string
+  errore?: string | null
   idImportMessaggio: number
 }
 
@@ -379,6 +380,8 @@ export default function App() {
                       <TableHead>Cellulare</TableHead>
                       <TableHead className="min-w-[250px]">Testo</TableHead>
                       <TableHead>Codice</TableHead>
+                      <TableHead>Link</TableHead>
+                      <TableHead>ID-APP</TableHead>
                       <TableHead className="w-28 text-center">Stato</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -399,10 +402,21 @@ export default function App() {
                           {msg.cellulare}
                         </TableCell>
                         <TableCell className="max-w-md">
-                          <p className="truncate">{msg.testo}</p>
+                          <p className="truncate" title={msg.testo}>{msg.testo}</p>
+                          {msg.errore && (
+                            <p className="text-[11px] text-danger mt-1 font-medium animate-in fade-in line-clamp-2" title={msg.errore}>
+                              ⚠️ {msg.errore}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {msg.codice}
+                          {msg.codice || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">
+                          {msg.link || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">
+                          {msg.idApp || "-"}
                         </TableCell>
                         <TableCell className="text-center">
                           <StatusBadge stato={msg.stato} />
