@@ -8,6 +8,7 @@ import makeWASocket, {
   initAuthCreds,
   proto,
   BufferJSON,
+  fetchLatestBaileysVersion,
 } from '@whiskeysockets/baileys';
 import * as QRCode from 'qrcode';
 import { Boom } from '@hapi/boom';
@@ -126,9 +127,19 @@ export class WhatsappService {
     this.status = 'connecting';
     const { state, saveCreds } = await this.useDbAuthState();
 
+    // Fetch the latest WhatsApp Web version to prevent connection failure loop
+    let version: [number, number, number] = [2, 3000, 1017013821];
+    try {
+      const latest = await fetchLatestBaileysVersion();
+      version = latest.version;
+      this.logger.log(`Using WA Web version v${version.join('.')}`);
+    } catch (err) {
+      this.logger.warn(`Failed to fetch latest WA version, using default: ${err.message}`);
+    }
+
     this.socket = makeWASocket({
+      version,
       auth: state,
-      printQRInTerminal: true,
     });
 
     this.socket.ev.on('creds.update', saveCreds);

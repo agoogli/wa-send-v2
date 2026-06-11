@@ -126,6 +126,8 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [hasImported, setHasImported] = useState(false)
+  const [currentImportId, setCurrentImportId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Poll WhatsApp status
@@ -145,21 +147,6 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch messaggi al mount
-  useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/messages`)
-        if (res.ok) {
-          setMessages(await res.json())
-        }
-      } catch {
-        // Backend non disponibile
-      }
-    }
-    fetchMessages()
-  }, [])
-
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true)
     setFileName(file.name)
@@ -173,6 +160,8 @@ export default function App() {
       if (res.ok) {
         const data = await res.json()
         setMessages(data.messages)
+        setCurrentImportId(data.importId)
+        setHasImported(true)
       }
     } catch (err) {
       console.error("Upload fallito:", err)
@@ -182,12 +171,13 @@ export default function App() {
   }, [])
 
   const handleSend = useCallback(async () => {
+    if (!currentImportId) return
     setSending(true)
     try {
-      const res = await fetch(`${API_BASE}/messages/send`, { method: "POST" })
+      const res = await fetch(`${API_BASE}/messages/send?importId=${currentImportId}`, { method: "POST" })
       if (res.ok) {
         // Aggiorna messaggi dopo invio
-        const msgRes = await fetch(`${API_BASE}/messages`)
+        const msgRes = await fetch(`${API_BASE}/messages?importId=${currentImportId}`)
         if (msgRes.ok) {
           setMessages(await msgRes.json())
         }
@@ -197,12 +187,97 @@ export default function App() {
     } finally {
       setSending(false)
     }
-  }, [])
+  }, [currentImportId])
 
-  const importatoCount = messages.filter((m) => m.stato === "IMPORTATO").length
-  const pendingCount = messages.filter((m) => m.stato === "PENDING").length
-  const inviatoCount = messages.filter((m) => m.stato === "INVIATO").length
-  const erroreCount = messages.filter((m) => m.stato === "ERRORE").length
+  const importatoCount = hasImported ? messages.filter((m) => m.stato === "IMPORTATO").length : 0
+  const pendingCount = hasImported ? messages.filter((m) => m.stato === "PENDING").length : 0
+  const inviatoCount = hasImported ? messages.filter((m) => m.stato === "INVIATO").length : 0
+  const erroreCount = hasImported ? messages.filter((m) => m.stato === "ERRORE").length : 0
+
+  if (waStatus.status !== "connected") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Header */}
+        <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                <MessageSquare className="h-5 w-5 text-primary" />
+              </div>
+              <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
+            </div>
+            <StatusIndicator status={waStatus.status} />
+          </div>
+        </header>
+
+        <main className="flex-1 flex items-center justify-center px-6 py-12">
+          <Card className="max-w-md w-full border-border/40 bg-card shadow-lg relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-100" />
+            <CardHeader className="text-center relative z-10">
+              <CardTitle className="text-xl font-bold flex items-center justify-center gap-2">
+                {waStatus.status === "connecting" && !waStatus.qrCode ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin text-primary animate-pulse" />
+                    Inizializzazione sessione...
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-5 w-5 text-danger" />
+                    Connessione a WhatsApp
+                  </>
+                )}
+              </CardTitle>
+              <CardDescription className="mt-2 text-sm text-muted-foreground">
+                {waStatus.status === "connecting" && !waStatus.qrCode
+                  ? "Connessione in corso al server Baileys WhatsApp. Generazione del QR Code..."
+                  : "Per inviare i messaggi da questa applicazione, devi prima scansionare il codice QR con il tuo telefono."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center pb-8 relative z-10">
+              {waStatus.qrCode ? (
+                <div className="space-y-6 flex flex-col items-center w-full">
+                  <div className="relative p-3 bg-white rounded-2xl border border-border/60 shadow-inner group-hover:scale-[1.02] transition-transform duration-300">
+                    <img
+                      src={waStatus.qrCode}
+                      alt="WhatsApp QR Code"
+                      className="h-64 w-64 rounded-xl"
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-2 max-w-xs text-left list-decimal pl-4">
+                    <p>1. Apri <strong>WhatsApp</strong> sul telefono.</p>
+                    <p>2. Menu (tre puntini) o Impostazioni $\rightarrow$ <strong>Dispositivi collegati</strong>.</p>
+                    <p>3. Tocca su <strong>Collega un dispositivo</strong>.</p>
+                    <p>4. Inquadra lo schermo per catturare il codice QR.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center py-12 text-muted-foreground space-y-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="text-sm font-medium animate-pulse">Generazione del codice QR in corso...</p>
+                  {waStatus.status === "disconnected" && (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await fetch(`${API_BASE}/whatsapp/connect`, { method: "POST" })
+                        } catch (err) {
+                          console.error("Errore durante la connessione:", err)
+                        }
+                      }}
+                      variant="outline"
+                      className="mt-4 gap-2"
+                    >
+                      <Wifi className="h-4 w-4" />
+                      Avvia Connessione
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -220,25 +295,6 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-        {/* QR Code Card — visibile quando in connessione */}
-        {waStatus.status === "connecting" && waStatus.qrCode && (
-          <Card className="border-warning/30 bg-warning/5 animate-in fade-in duration-500">
-            <CardHeader className="text-center">
-              <CardTitle className="text-warning">Scansiona il QR Code</CardTitle>
-              <CardDescription>
-                Apri WhatsApp sul tuo telefono → Impostazioni → Dispositivi collegati → Collega un dispositivo
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              <img
-                src={waStatus.qrCode}
-                alt="WhatsApp QR Code"
-                className="h-64 w-64 rounded-xl border border-border p-2 bg-white"
-              />
-            </CardContent>
-          </Card>
-        )}
-
         {/* Upload + Stats Row */}
         <div className="grid gap-6 md:grid-cols-3">
           {/* Upload Card */}
@@ -297,7 +353,7 @@ export default function App() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Totale</span>
                 <span className="text-2xl font-bold tabular-nums">
-                  {messages.length}
+                  {hasImported ? messages.length : 0}
                 </span>
               </div>
               <div className="h-px bg-border" />
@@ -330,7 +386,7 @@ export default function App() {
         </div>
 
         {/* Bottone Invio */}
-        {messages.length > 0 && importatoCount > 0 && (
+        {hasImported && messages.length > 0 && importatoCount > 0 && (
           <div className="flex justify-end animate-in slide-in-from-bottom-2 duration-300">
             <Button
               id="send-button"
@@ -352,83 +408,85 @@ export default function App() {
         )}
 
         {/* Tabella Messaggi */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              Messaggi
-            </CardTitle>
-            <CardDescription>
-              {messages.length === 0
-                ? "Carica un file HTML per visualizzare i messaggi"
-                : `${messages.length} messaggi caricati`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <FileText className="h-12 w-12 mb-4 opacity-30" />
-                <p className="text-sm">Nessun messaggio caricato</p>
-              </div>
-            ) : (
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>Nominativo</TableHead>
-                      <TableHead>Cellulare</TableHead>
-                      <TableHead className="min-w-[250px]">Testo</TableHead>
-                      <TableHead>Codice</TableHead>
-                      <TableHead>Link</TableHead>
-                      <TableHead>ID-APP</TableHead>
-                      <TableHead className="w-28 text-center">Stato</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {messages.map((msg, idx) => (
-                      <TableRow
-                        key={msg.id}
-                        className="animate-in fade-in duration-300"
-                        style={{ animationDelay: `${idx * 30}ms` }}
-                      >
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {msg.id}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {msg.nominativo}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {msg.cellulare}
-                        </TableCell>
-                        <TableCell className="max-w-md">
-                          <p className="truncate" title={msg.testo}>{msg.testo}</p>
-                          {msg.errore && (
-                            <p className="text-[11px] text-danger mt-1 font-medium animate-in fade-in line-clamp-2" title={msg.errore}>
-                              ⚠️ {msg.errore}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {msg.codice || "-"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-mono">
-                          {msg.link || "-"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-mono">
-                          {msg.idApp || "-"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <StatusBadge stato={msg.stato} />
-                        </TableCell>
+        {hasImported && (
+          <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                Messaggi
+              </CardTitle>
+              <CardDescription>
+                {messages.length === 0
+                  ? "Carica un file HTML per visualizzare i messaggi"
+                  : `${messages.length} messaggi caricati`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                  <FileText className="h-12 w-12 mb-4 opacity-30" />
+                  <p className="text-sm">Nessun messaggio caricato</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Nominativo</TableHead>
+                        <TableHead>Cellulare</TableHead>
+                        <TableHead className="min-w-[250px]">Testo</TableHead>
+                        <TableHead>Codice</TableHead>
+                        <TableHead>Link</TableHead>
+                        <TableHead>ID-APP</TableHead>
+                        <TableHead className="w-28 text-center">Stato</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {messages.map((msg, idx) => (
+                        <TableRow
+                          key={msg.id}
+                          className="animate-in fade-in duration-300"
+                          style={{ animationDelay: `${idx * 30}ms` }}
+                        >
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {msg.id}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {msg.nominativo}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {msg.cellulare}
+                          </TableCell>
+                          <TableCell className="max-w-md">
+                            <p className="truncate" title={msg.testo}>{msg.testo}</p>
+                            {msg.errore && (
+                              <p className="text-[11px] text-danger mt-1 font-medium animate-in fade-in line-clamp-2" title={msg.errore}>
+                                ⚠️ {msg.errore}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {msg.codice || "-"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {msg.link || "-"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {msg.idApp || "-"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <StatusBadge stato={msg.stato} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   )
