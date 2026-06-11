@@ -27,6 +27,7 @@ model RigaMessaggio {
   codice            String @default("") @db.VarChar(255)
   idApp             String @default("") @map("id_app") @db.VarChar(255)
   stato             String @default("PENDING") @db.VarChar(50)
+  errore            String? @db.VarChar(4096)
 
   idImportMessaggio Int            @map("id_import_messaggio")
   importMessaggio   ImportMessaggio @relation(fields: [idImportMessaggio], references: [id], onDelete: Cascade)
