@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  FileDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -82,24 +83,29 @@ function StatusIndicator({ status }: { status: WhatsAppStatus["status"] }) {
 }
 
 function StatusBadge({ stato }: { stato: string }) {
-  const config: Record<string, { variant: "warning" | "success" | "danger"; icon: typeof Clock; label: string }> = {
+  const config: Record<string, { variant: "warning" | "success" | "danger" | "secondary"; icon: typeof Clock; label: string }> = {
+    IMPORTATO: {
+      variant: "secondary",
+      icon: FileDown,
+      label: "Importato",
+    },
     PENDING: {
       variant: "warning",
       icon: Clock,
-      label: "In attesa",
+      label: "In invio",
     },
-    SENT: {
+    INVIATO: {
       variant: "success",
       icon: CheckCircle2,
       label: "Inviato",
     },
-    FAILED: {
+    ERRORE: {
       variant: "danger",
       icon: XCircle,
-      label: "Fallito",
+      label: "Errore",
     },
   }
-  const c = config[stato] || config.PENDING
+  const c = config[stato] || config.IMPORTATO
   const Icon = c.icon
 
   return (
@@ -192,9 +198,10 @@ export default function App() {
     }
   }, [])
 
+  const importatoCount = messages.filter((m) => m.stato === "IMPORTATO").length
   const pendingCount = messages.filter((m) => m.stato === "PENDING").length
-  const sentCount = messages.filter((m) => m.stato === "SENT").length
-  const failedCount = messages.filter((m) => m.stato === "FAILED").length
+  const inviatoCount = messages.filter((m) => m.stato === "INVIATO").length
+  const erroreCount = messages.filter((m) => m.stato === "ERRORE").length
 
   return (
     <div className="min-h-screen bg-background">
@@ -294,8 +301,14 @@ export default function App() {
               </div>
               <div className="h-px bg-border" />
               <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <FileDown className="h-3.5 w-3.5" /> Importati
+                </span>
+                <span className="font-semibold tabular-nums">{importatoCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-sm text-warning flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> In attesa
+                  <Clock className="h-3.5 w-3.5" /> In invio
                 </span>
                 <span className="font-semibold tabular-nums">{pendingCount}</span>
               </div>
@@ -303,20 +316,20 @@ export default function App() {
                 <span className="text-sm text-success flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Inviati
                 </span>
-                <span className="font-semibold tabular-nums">{sentCount}</span>
+                <span className="font-semibold tabular-nums">{inviatoCount}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-danger flex items-center gap-1.5">
-                  <XCircle className="h-3.5 w-3.5" /> Falliti
+                  <XCircle className="h-3.5 w-3.5" /> Errore
                 </span>
-                <span className="font-semibold tabular-nums">{failedCount}</span>
+                <span className="font-semibold tabular-nums">{erroreCount}</span>
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Bottone Invio */}
-        {messages.length > 0 && pendingCount > 0 && (
+        {messages.length > 0 && importatoCount > 0 && (
           <div className="flex justify-end animate-in slide-in-from-bottom-2 duration-300">
             <Button
               id="send-button"
@@ -332,7 +345,7 @@ export default function App() {
               )}
               {sending
                 ? "Invio in corso..."
-                : `Invia ${pendingCount} messaggi`}
+                : `Invia ${importatoCount} messaggi`}
             </Button>
           </div>
         )}

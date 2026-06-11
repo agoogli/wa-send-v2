@@ -7,6 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Stati possibili di una riga messaggio
+enum StatoMessaggio {
+  IMPORTATO  // letto da file e scritto su database
+  PENDING    // invio in corso
+  INVIATO    // invio completato con successo
+  ERRORE     // invio fallito
+}
+
 /// Rappresenta un singolo import di file HTML con messaggi
 model ImportMessaggio {
   id      Int      @id @default(autoincrement())
@@ -26,7 +34,7 @@ model RigaMessaggio {
   link              String @default("")
   codice            String @default("") @db.VarChar(255)
   idApp             String @default("") @map("id_app") @db.VarChar(255)
-  stato             String @default("PENDING") @db.VarChar(50)
+  stato             StatoMessaggio @default(IMPORTATO)
   errore            String? @db.VarChar(4096)
 
   idImportMessaggio Int            @map("id_import_messaggio")

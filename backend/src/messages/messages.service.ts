@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { StatoMessaggio } from '@prisma/client';
 import * as cheerio from 'cheerio';
 
 export interface ParsedMessage {
@@ -68,7 +69,7 @@ export class MessagesService {
             link: m.link,
             codice: m.codice,
             idApp: m.idApp,
-            stato: 'PENDING',
+            stato: StatoMessaggio.IMPORTATO,
           })),
         },
       },
@@ -108,10 +109,10 @@ export class MessagesService {
   }
 
   /**
-   * Invia tutti i messaggi PENDING di un determinato import via WhatsApp.
+   * Invia tutti i messaggi IMPORTATO di un determinato import via WhatsApp.
    */
   async sendAll(importId?: number) {
-    const where: Record<string, unknown> = { stato: 'PENDING' };
+    const where: Record<string, unknown> = { stato: StatoMessaggio.IMPORTATO };
     if (importId) {
       where.idImportMessaggio = importId;
     }
@@ -121,20 +122,31 @@ export class MessagesService {
     const results = [];
 
     for (const msg of pending) {
+      // Segna come PENDING (invio in corso)
+      await this.prisma.rigaMessaggio.update({
+        where: { id: msg.id },
+        data: { stato: StatoMessaggio.PENDING },
+      });
+
       const result = await this.whatsapp.sendMessage(msg.cellulare, msg.testo);
 
-      const newStato = result.success ? 'SENT' : 'FAILED';
+      const newStato = result.success
+        ? StatoMessaggio.INVIATO
+        : StatoMessaggio.ERRORE;
 
       await this.prisma.rigaMessaggio.update({
         where: { id: msg.id },
-        data: { stato: newStato },
+        data: {
+          stato: newStato,
+          errore: result.error || null,
+        },
       });
 
       results.push({
         id: msg.id,
         cellulare: msg.cellulare,
         stato: newStato,
-        error: result.error,
+        errore: result.error,
       });
     }
 
