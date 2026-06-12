@@ -2,9 +2,13 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
+  Param,
   Query,
   UploadedFile,
   UseInterceptors,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MessagesService } from './messages.service';
@@ -39,5 +43,16 @@ export class MessagesController {
   async sendAll(@Query('importId') importId?: string) {
     const id = importId ? parseInt(importId, 10) : undefined;
     return this.messagesService.sendAll(id);
+  }
+
+  @Delete(':id')
+  async deleteImport(@Param('id') id: string) {
+    const importId = parseInt(id, 10);
+    try {
+      await this.messagesService.deleteImport(importId);
+      return { success: true, message: 'Import eliminato con successo' };
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
   }
 }

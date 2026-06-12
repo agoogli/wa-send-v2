@@ -173,6 +173,29 @@ export class MessagesService {
   }
 
   /**
+   * Elimina un import e tutte le sue righe associate (cascata).
+   * È possibile eliminare l'import solo se non ci sono messaggi inviati o in corso di invio.
+   */
+  async deleteImport(importId: number) {
+    const hasSent = await this.prisma.rigaMessaggio.findFirst({
+      where: {
+        idImportMessaggio: importId,
+        stato: {
+          in: [StatoMessaggio.INVIATO, StatoMessaggio.PENDING],
+        },
+      },
+    });
+
+    if (hasSent) {
+      throw new Error('Impossibile eliminare un import che contiene messaggi inviati o in corso di invio');
+    }
+
+    return this.prisma.importMessaggio.delete({
+      where: { id: importId },
+    });
+  }
+
+  /**
    * Invia tutti i messaggi IMPORTATO di un determinato import via WhatsApp.
    */
   async sendAll(importId?: number) {

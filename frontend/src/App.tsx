@@ -13,6 +13,7 @@ import {
   FileDown,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -128,6 +129,8 @@ function StatusBadge({ stato }: { stato: string }) {
 export default function App() {
   const [imports, setImports] = useState<ImportMessaggio[]>([])
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [confirmSendId, setConfirmSendId] = useState<number | null>(null)
   const [waStatus, setWaStatus] = useState<WhatsAppStatus>({
     status: "disconnected",
     qrCode: null,
@@ -219,6 +222,33 @@ export default function App() {
       setSending(false)
     }
   }, [])
+
+  const handleDelete = useCallback(async (importId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/messages/${importId}`, { method: "DELETE" })
+      if (res.ok) {
+        setConfirmDeleteId(null)
+        // Ricarica la lista degli import
+        const listRes = await fetch(`${API_BASE}/messages/imports`)
+        if (listRes.ok) {
+          const data: ImportMessaggio[] = await listRes.json()
+          setImports(data)
+          if (expandedId === importId) {
+            if (data.length > 0) {
+              setExpandedId(data[0].id)
+            } else {
+              setExpandedId(null)
+            }
+          }
+        }
+      } else {
+        const errorData = await res.json()
+        alert(errorData.message || "Errore durante l'eliminazione")
+      }
+    } catch (err) {
+      console.error("Errore durante l'eliminazione:", err)
+    }
+  }, [expandedId])
 
   // Statistiche calcolate sull'import correntemente espanso
   const activeImport = imports.find((imp) => imp.id === expandedId)
@@ -456,6 +486,17 @@ export default function App() {
               const impErroreCount = imp.righe.filter((r) => r.stato === "ERRORE").length
               const impPendingCount = imp.righe.filter((r) => r.stato === "PENDING").length
 
+              // È possibile cancellare l'import solo se non ci sono messaggi inviati o in corso di invio
+              const canDelete = imp.righe.every(
+                (r) =>
+                  r.stato === "IMPORTATO" ||
+                  (r.stato === "ERRORE" &&
+                    r.errore &&
+                    (r.errore.includes("mancante") ||
+                      r.errore.includes("vuoto") ||
+                      r.errore.includes("non valido")))
+              )
+
               return (
                 <Card
                   key={imp.id}
@@ -513,26 +554,101 @@ export default function App() {
                   {/* Dettaglio tabella (visibile solo se espanso) */}
                   {isExpanded && (
                     <CardContent className="border-t border-border/40 p-0 bg-background/30 animate-in slide-in-from-top-2 duration-300">
-                      {/* Pulsante Invio Interno per questo import */}
-                      {impImportatoCount > 0 && (
-                        <div className="flex justify-end p-4 border-b border-border/40 bg-muted/20">
-                          <Button
-                            id={`send-button-${imp.id}`}
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleSend(imp.id)
-                            }}
-                            disabled={sending || waStatus.status !== "connected"}
-                            className="gap-2"
-                          >
-                            {sending ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Send className="h-3.5 w-3.5" />
-                            )}
-                            {sending ? "Invio..." : `Invia ${impImportatoCount} messaggi`}
-                          </Button>
+                      {/* Pulsante Invio Interno e Cestino per questo import */}
+                      {(impImportatoCount > 0 || canDelete) && (
+                        <div className="flex items-center justify-end gap-3 p-4 border-b border-border/40 bg-muted/20">
+                          {confirmDeleteId === imp.id ? (
+                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
+                              <span className="text-xs text-danger font-semibold">Confermi l'eliminazione dell'import?</span>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(imp.id)
+                                }}
+                                className="h-8 py-1 px-3 text-xs"
+                              >
+                                Ok
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setConfirmDeleteId(null)
+                                }}
+                                className="h-8 py-1 px-3 text-xs"
+                              >
+                                Annulla
+                              </Button>
+                            </div>
+                          ) : confirmSendId === imp.id ? (
+                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
+                              <span className="text-xs text-warning font-semibold">confermi l'invio di {impImportatoCount} messaggi?</span>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setConfirmSendId(null)
+                                  handleSend(imp.id)
+                                }}
+                                className="h-8 py-1 px-3 text-xs"
+                              >
+                                Ok
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setConfirmSendId(null)
+                                }}
+                                className="h-8 py-1 px-3 text-xs"
+                              >
+                                Annulla
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              {impImportatoCount > 0 && (
+                                <Button
+                                  id={`send-button-${imp.id}`}
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setConfirmSendId(imp.id)
+                                    setConfirmDeleteId(null)
+                                  }}
+                                  disabled={sending || waStatus.status !== "connected"}
+                                  className="gap-2 h-9"
+                                >
+                                  {sending ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Send className="h-3.5 w-3.5" />
+                                  )}
+                                  {sending ? "Invio..." : `Invia ${impImportatoCount} messaggi`}
+                                </Button>
+                              )}
+                              {canDelete && (
+                                <Button
+                                  id={`delete-button-${imp.id}`}
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setConfirmDeleteId(imp.id)
+                                    setConfirmSendId(null)
+                                  }}
+                                  className="h-9 w-9 p-0 flex items-center justify-center"
+                                  title="Elimina import"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -541,7 +657,7 @@ export default function App() {
                           <TableHeader>
                             <TableRow className="bg-muted/20 hover:bg-muted/20">
                               <TableHead className="w-[50px] text-center">#</TableHead>
-                              <TableHead className="w-[150px]">Nominativo</TableHead>
+                              <TableHead className="w-[200px]">Nominativo</TableHead>
                               <TableHead className="w-[130px]">Cellulare</TableHead>
                               <TableHead className="w-auto">Testo</TableHead>
                               <TableHead className="w-[90px]">Codice</TableHead>
