@@ -158,13 +158,16 @@ export class MessagesService {
   }
 
   /**
-   * Recupera tutti gli import.
+   * Recupera gli ultimi 10 import con le relative righe.
    */
   async findAllImports() {
     return this.prisma.importMessaggio.findMany({
+      take: 10,
       orderBy: { id: 'desc' },
       include: {
-        _count: { select: { righe: true } },
+        righe: {
+          orderBy: { id: 'asc' },
+        },
       },
     });
   }

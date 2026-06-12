@@ -11,6 +11,8 @@ import {
   XCircle,
   Clock,
   FileDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +45,12 @@ interface RigaMessaggio {
   stato: string
   errore?: string | null
   idImportMessaggio: number
+}
+
+interface ImportMessaggio {
+  id: number
+  created: string
+  righe: RigaMessaggio[]
 }
 
 interface WhatsAppStatus {
@@ -118,7 +126,8 @@ function StatusBadge({ stato }: { stato: string }) {
 }
 
 export default function App() {
-  const [messages, setMessages] = useState<RigaMessaggio[]>([])
+  const [imports, setImports] = useState<ImportMessaggio[]>([])
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [waStatus, setWaStatus] = useState<WhatsAppStatus>({
     status: "disconnected",
     qrCode: null,
@@ -126,8 +135,6 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
-  const [hasImported, setHasImported] = useState(false)
-  const [currentImportId, setCurrentImportId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Poll WhatsApp status
@@ -147,6 +154,25 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
+  // Fetch imports al mount
+  useEffect(() => {
+    const fetchImports = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/messages/imports`)
+        if (res.ok) {
+          const data: ImportMessaggio[] = await res.json()
+          setImports(data)
+          if (data.length > 0) {
+            setExpandedId(data[0].id)
+          }
+        }
+      } catch {
+        // Backend non disponibile
+      }
+    }
+    fetchImports()
+  }, [])
+
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true)
     setFileName(file.name)
@@ -158,10 +184,15 @@ export default function App() {
         body: formData,
       })
       if (res.ok) {
-        const data = await res.json()
-        setMessages(data.messages)
-        setCurrentImportId(data.importId)
-        setHasImported(true)
+        // Ricarica la lista per includere il nuovo import
+        const listRes = await fetch(`${API_BASE}/messages/imports`)
+        if (listRes.ok) {
+          const data: ImportMessaggio[] = await listRes.json()
+          setImports(data)
+          if (data.length > 0) {
+            setExpandedId(data[0].id)
+          }
+        }
       }
     } catch (err) {
       console.error("Upload fallito:", err)
@@ -170,16 +201,16 @@ export default function App() {
     }
   }, [])
 
-  const handleSend = useCallback(async () => {
-    if (!currentImportId) return
+  const handleSend = useCallback(async (importId: number) => {
     setSending(true)
     try {
-      const res = await fetch(`${API_BASE}/messages/send?importId=${currentImportId}`, { method: "POST" })
+      const res = await fetch(`${API_BASE}/messages/send?importId=${importId}`, { method: "POST" })
       if (res.ok) {
-        // Aggiorna messaggi dopo invio
-        const msgRes = await fetch(`${API_BASE}/messages?importId=${currentImportId}`)
-        if (msgRes.ok) {
-          setMessages(await msgRes.json())
+        // Ricarica per aggiornare gli stati
+        const listRes = await fetch(`${API_BASE}/messages/imports`)
+        if (listRes.ok) {
+          const data: ImportMessaggio[] = await listRes.json()
+          setImports(data)
         }
       }
     } catch (err) {
@@ -187,19 +218,22 @@ export default function App() {
     } finally {
       setSending(false)
     }
-  }, [currentImportId])
+  }, [])
 
-  const importatoCount = hasImported ? messages.filter((m) => m.stato === "IMPORTATO").length : 0
-  const pendingCount = hasImported ? messages.filter((m) => m.stato === "PENDING").length : 0
-  const inviatoCount = hasImported ? messages.filter((m) => m.stato === "INVIATO").length : 0
-  const erroreCount = hasImported ? messages.filter((m) => m.stato === "ERRORE").length : 0
+  // Statistiche calcolate sull'import correntemente espanso
+  const activeImport = imports.find((imp) => imp.id === expandedId)
+  const totalCount = activeImport ? activeImport.righe.length : 0
+  const importatoCount = activeImport ? activeImport.righe.filter((r) => r.stato === "IMPORTATO").length : 0
+  const pendingCount = activeImport ? activeImport.righe.filter((r) => r.stato === "PENDING").length : 0
+  const inviatoCount = activeImport ? activeImport.righe.filter((r) => r.stato === "INVIATO").length : 0
+  const erroreCount = activeImport ? activeImport.righe.filter((r) => r.stato === "ERRORE").length : 0
 
   if (waStatus.status !== "connected") {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+          <div className="w-full md:w-[80%] md:max-w-[80%] mx-auto flex h-16 items-center justify-between px-4 md:px-0">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                 <MessageSquare className="h-5 w-5 text-primary" />
@@ -283,7 +317,7 @@ export default function App() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <div className="w-full md:w-[80%] md:max-w-[80%] mx-auto flex h-16 items-center justify-between px-4 md:px-0">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <MessageSquare className="h-5 w-5 text-primary" />
@@ -294,7 +328,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+      <main className="w-full md:w-[80%] md:max-w-[80%] mx-auto space-y-6 px-4 md:px-0 py-8">
         {/* Upload + Stats Row */}
         <div className="grid gap-6 md:grid-cols-3">
           {/* Upload Card */}
@@ -347,13 +381,20 @@ export default function App() {
           {/* Stats Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Riepilogo</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                Riepilogo
+                {activeImport && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Import #{activeImport.id}
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Totale</span>
                 <span className="text-2xl font-bold tabular-nums">
-                  {hasImported ? messages.length : 0}
+                  {totalCount}
                 </span>
               </div>
               <div className="h-px bg-border" />
@@ -385,108 +426,177 @@ export default function App() {
           </Card>
         </div>
 
-        {/* Bottone Invio */}
-        {hasImported && messages.length > 0 && importatoCount > 0 && (
-          <div className="flex justify-end animate-in slide-in-from-bottom-2 duration-300">
-            <Button
-              id="send-button"
-              size="lg"
-              onClick={handleSend}
-              disabled={sending || waStatus.status !== "connected"}
-              className="gap-2"
-            >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              {sending
-                ? "Invio in corso..."
-                : `Invia ${importatoCount} messaggi`}
-            </Button>
+        {/* Lista Importazioni Espandibili */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold tracking-tight">Cronologia Invii (Ultimi 10)</h2>
+            <span className="text-xs text-muted-foreground">
+              Seleziona un import per visualizzarne i dettagli e le statistiche
+            </span>
           </div>
-        )}
 
-        {/* Tabella Messaggi */}
-        {hasImported && (
-          <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" />
-                Messaggi
-              </CardTitle>
-              <CardDescription>
-                {messages.length === 0
-                  ? "Carica un file HTML per visualizzare i messaggi"
-                  : `${messages.length} messaggi caricati`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                  <FileText className="h-12 w-12 mb-4 opacity-30" />
-                  <p className="text-sm">Nessun messaggio caricato</p>
-                </div>
-              ) : (
-                <div className="rounded-lg border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/30 hover:bg-muted/30">
-                        <TableHead className="w-12">#</TableHead>
-                        <TableHead>Nominativo</TableHead>
-                        <TableHead>Cellulare</TableHead>
-                        <TableHead className="min-w-[250px]">Testo</TableHead>
-                        <TableHead>Codice</TableHead>
-                        <TableHead>Link</TableHead>
-                        <TableHead>ID-APP</TableHead>
-                        <TableHead className="w-28 text-center">Stato</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {messages.map((msg, idx) => (
-                        <TableRow
-                          key={msg.id}
-                          className="animate-in fade-in duration-300"
-                          style={{ animationDelay: `${idx * 30}ms` }}
-                        >
-                          <TableCell className="font-mono text-xs text-muted-foreground">
-                            {msg.id}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {msg.nominativo}
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {msg.cellulare}
-                          </TableCell>
-                          <TableCell className="max-w-md">
-                            <p className="truncate" title={msg.testo}>{msg.testo}</p>
-                            {msg.errore && (
-                              <p className="text-[11px] text-danger mt-1 font-medium animate-in fade-in line-clamp-2" title={msg.errore}>
-                                ⚠️ {msg.errore}
-                              </p>
+          {imports.length === 0 ? (
+            <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <FileText className="h-12 w-12 mb-4 opacity-30 animate-pulse" />
+                <p className="text-sm font-medium">Nessun import presente</p>
+                <p className="text-xs mt-1">Carica un file HTML per iniziare</p>
+              </CardContent>
+            </Card>
+          ) : (
+            imports.map((imp) => {
+              const isExpanded = expandedId === imp.id
+              const formattedDate = new Date(imp.created).toLocaleString(undefined, {
+                dateStyle: "medium",
+                timeStyle: "medium",
+              })
+
+              const impImportatoCount = imp.righe.filter((r) => r.stato === "IMPORTATO").length
+              const impInviatoCount = imp.righe.filter((r) => r.stato === "INVIATO").length
+              const impErroreCount = imp.righe.filter((r) => r.stato === "ERRORE").length
+              const impPendingCount = imp.righe.filter((r) => r.stato === "PENDING").length
+
+              return (
+                <Card
+                  key={imp.id}
+                  className={`border-border/40 transition-all duration-300 overflow-hidden ${
+                    isExpanded ? "ring-1 ring-primary/20 bg-card shadow-md" : "hover:bg-muted/30 bg-card/60"
+                  }`}
+                >
+                  {/* Header dell'espandibile */}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer select-none"
+                    onClick={() => setExpandedId(isExpanded ? null : imp.id)}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className={`p-1.5 rounded-md ${isExpanded ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <span className="font-semibold text-sm sm:text-base">
+                        Import #{imp.id} — {formattedDate}
+                      </span>
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        {imp.righe.length} messaggi
+                      </Badge>
+                      <div className="flex gap-1.5 ml-2">
+                        {impImportatoCount > 0 && (
+                          <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] py-0.5">
+                            {impImportatoCount} da inviare
+                          </Badge>
+                        )}
+                        {impPendingCount > 0 && (
+                          <Badge variant="warning" className="text-[10px] py-0.5 animate-pulse">
+                            {impPendingCount} in invio
+                          </Badge>
+                        )}
+                        {impInviatoCount > 0 && (
+                          <Badge variant="success" className="text-[10px] py-0.5">
+                            {impInviatoCount} inviati
+                          </Badge>
+                        )}
+                        {impErroreCount > 0 && (
+                          <Badge variant="danger" className="text-[10px] py-0.5">
+                            {impErroreCount} errori
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-muted-foreground transition-transform duration-300" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-300" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dettaglio tabella (visibile solo se espanso) */}
+                  {isExpanded && (
+                    <CardContent className="border-t border-border/40 p-0 bg-background/30 animate-in slide-in-from-top-2 duration-300">
+                      {/* Pulsante Invio Interno per questo import */}
+                      {impImportatoCount > 0 && (
+                        <div className="flex justify-end p-4 border-b border-border/40 bg-muted/20">
+                          <Button
+                            id={`send-button-${imp.id}`}
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSend(imp.id)
+                            }}
+                            disabled={sending || waStatus.status !== "connected"}
+                            className="gap-2"
+                          >
+                            {sending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
                             )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {msg.codice || "-"}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground font-mono">
-                            {msg.link || "-"}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground font-mono">
-                            {msg.idApp || "-"}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <StatusBadge stato={msg.stato} />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                            {sending ? "Invio..." : `Invia ${impImportatoCount} messaggi`}
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="overflow-x-auto w-full">
+                        <Table className="w-full table-fixed border-collapse">
+                          <TableHeader>
+                            <TableRow className="bg-muted/20 hover:bg-muted/20">
+                              <TableHead className="w-[50px] text-center">#</TableHead>
+                              <TableHead className="w-[150px]">Nominativo</TableHead>
+                              <TableHead className="w-[130px]">Cellulare</TableHead>
+                              <TableHead className="w-auto">Testo</TableHead>
+                              <TableHead className="w-[90px]">Codice</TableHead>
+                              <TableHead className="w-[100px]">Link</TableHead>
+                              <TableHead className="w-[110px]">ID-APP</TableHead>
+                              <TableHead className="w-[110px] text-center">Stato</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {imp.righe.map((msg) => (
+                              <TableRow
+                                key={msg.id}
+                                className="hover:bg-muted/10 transition-colors"
+                              >
+                                <TableCell className="font-mono text-xs text-muted-foreground text-center">
+                                  {msg.id}
+                                </TableCell>
+                                <TableCell className="font-medium truncate" title={msg.nominativo}>
+                                  {msg.nominativo}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  {msg.cellulare}
+                                </TableCell>
+                                <TableCell className="select-text">
+                                  <p className="truncate text-sm" title={msg.testo}>{msg.testo}</p>
+                                  {msg.errore && (
+                                    <p className="text-[11px] text-danger mt-1 font-medium line-clamp-2" title={msg.errore}>
+                                      ⚠️ {msg.errore}
+                                    </p>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground truncate" title={msg.codice}>
+                                  {msg.codice || "-"}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground font-mono truncate" title={msg.link}>
+                                  {msg.link || "-"}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground font-mono truncate" title={msg.idApp}>
+                                  {msg.idApp || "-"}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <StatusBadge stato={msg.stato} />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              )
+            })
+          )}
+        </div>
       </main>
     </div>
   )
