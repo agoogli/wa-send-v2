@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react"
+import { io } from "socket.io-client"
 import {
   Upload,
   Send,
@@ -174,6 +175,37 @@ export default function App() {
       }
     }
     fetchImports()
+  }, [])
+
+  // Connect to Socket.io for real-time updates
+  useEffect(() => {
+    const socket = io({
+      transports: ["websocket", "polling"],
+    })
+
+    socket.on("connect", () => {
+      console.log("Connected to WebSocket server")
+    })
+
+    socket.on("messageUpdated", (updatedMsg: RigaMessaggio) => {
+      setImports((prevImports) =>
+        prevImports.map((imp) => {
+          if (imp.id === updatedMsg.idImportMessaggio) {
+            return {
+              ...imp,
+              righe: imp.righe.map((r) =>
+                r.id === updatedMsg.id ? updatedMsg : r
+              ),
+            }
+          }
+          return imp
+        })
+      )
+    })
+
+    return () => {
+      socket.disconnect()
+    }
   }, [])
 
   const handleUpload = useCallback(async (file: File) => {

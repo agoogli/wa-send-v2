@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { StatoMessaggio } from '@prisma/client';
 import * as cheerio from 'cheerio';
+import { MessagesGateway } from './messages.gateway';
 
 export interface ParsedMessage {
   testo: string;
@@ -14,13 +15,27 @@ export interface ParsedMessage {
 }
 
 @Injectable()
-export class MessagesService {
+export class MessagesService implements OnModuleInit {
   private readonly logger = new Logger(MessagesService.name);
+  private queue: { id: number; cellulare: string; testo: string }[] = [];
+  private isProcessing = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsappService,
+    private readonly gateway: MessagesGateway,
   ) {}
+
+  async onModuleInit() {
+    // Reset all PENDING messages back to IMPORTATO on startup
+    const updated = await this.prisma.rigaMessaggio.updateMany({
+      where: { stato: StatoMessaggio.PENDING },
+      data: { stato: StatoMessaggio.IMPORTATO },
+    });
+    if (updated.count > 0) {
+      this.logger.log(`Resettati ${updated.count} messaggi da PENDING a IMPORTATO all'avvio`);
+    }
+  }
 
   /**
    * Parsa un file HTML (formato SMS.html) contenente una tabella con i messaggi.
@@ -199,44 +214,82 @@ export class MessagesService {
    * Invia tutti i messaggi IMPORTATO di un determinato import via WhatsApp.
    */
   async sendAll(importId?: number) {
-    const where: Record<string, unknown> = { stato: StatoMessaggio.IMPORTATO };
+    const where: Record<string, any> = { stato: StatoMessaggio.IMPORTATO };
     if (importId) {
       where.idImportMessaggio = importId;
     }
 
     const pending = await this.prisma.rigaMessaggio.findMany({ where });
 
-    const results = [];
-
-    for (const msg of pending) {
-      // Segna come PENDING (invio in corso)
-      await this.prisma.rigaMessaggio.update({
-        where: { id: msg.id },
-        data: { stato: StatoMessaggio.PENDING },
-      });
-
-      const result = await this.whatsapp.sendMessage(msg.cellulare, msg.testo);
-
-      const newStato = result.success
-        ? StatoMessaggio.INVIATO
-        : StatoMessaggio.ERRORE;
-
-      await this.prisma.rigaMessaggio.update({
-        where: { id: msg.id },
-        data: {
-          stato: newStato,
-          errore: result.error || null,
-        },
-      });
-
-      results.push({
-        id: msg.id,
-        cellulare: msg.cellulare,
-        stato: newStato,
-        errore: result.error,
-      });
+    if (pending.length === 0) {
+      return { success: true, count: 0 };
     }
 
-    return results;
+    // Update all matching messages to PENDING in database
+    await this.prisma.rigaMessaggio.updateMany({
+      where: {
+        id: { in: pending.map((m) => m.id) },
+      },
+      data: { stato: StatoMessaggio.PENDING },
+    });
+
+    // Queue messages in-memory
+    const jobs = pending.map((m) => ({
+      id: m.id,
+      cellulare: m.cellulare,
+      testo: m.testo,
+    }));
+    this.queue.push(...jobs);
+
+    // Start processing queue in the background
+    this.processQueue();
+
+    return { success: true, count: pending.length };
+  }
+
+  private async processQueue() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
+    try {
+      while (this.queue.length > 0) {
+        const job = this.queue.shift();
+        if (!job) continue;
+
+        // Pause between 900ms and 3000ms
+        const delayMs = Math.floor(Math.random() * (3000 - 900 + 1)) + 900;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+        // Check if message still exists and is PENDING in DB
+        const msg = await this.prisma.rigaMessaggio.findUnique({
+          where: { id: job.id },
+        });
+
+        if (!msg || msg.stato !== StatoMessaggio.PENDING) {
+          continue;
+        }
+
+        const result = await this.whatsapp.sendMessage(job.cellulare, job.testo);
+
+        const newStato = result.success
+          ? StatoMessaggio.INVIATO
+          : StatoMessaggio.ERRORE;
+
+        const updated = await this.prisma.rigaMessaggio.update({
+          where: { id: job.id },
+          data: {
+            stato: newStato,
+            errore: result.error || null,
+          },
+        });
+
+        // Notify client
+        this.gateway.emitMessageUpdate(updated);
+      }
+    } catch (error) {
+      this.logger.error('Errore durante l\'invio dei messaggi in background', error);
+    } finally {
+      this.isProcessing = false;
+    }
   }
 }
