@@ -103,7 +103,7 @@ function StatusBadge({ stato }: { stato: string }) {
     PENDING: {
       variant: "warning",
       icon: Clock,
-      label: "In invio",
+      label: "Invio...",
     },
     INVIATO: {
       variant: "success",
@@ -468,7 +468,7 @@ export default function App() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-warning flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> In invio
+                  <Clock className="h-3.5 w-3.5" /> Invio...
                 </span>
                 <span className="font-semibold tabular-nums">{pendingCount}</span>
               </div>
@@ -559,7 +559,7 @@ export default function App() {
                         )}
                         {impPendingCount > 0 && (
                           <Badge variant="warning" className="text-[10px] py-0.5 animate-pulse">
-                            {impPendingCount} in invio
+                            {impPendingCount} invio...
                           </Badge>
                         )}
                         {impInviatoCount > 0 && (
@@ -617,7 +617,7 @@ export default function App() {
                             </div>
                           ) : confirmSendId === imp.id ? (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
-                              <span className="text-xs text-warning font-semibold">confermi l'invio di {impImportatoCount} messaggi?</span>
+                              <span className="text-xs text-warning font-semibold">Confermi l'invio di {impImportatoCount} messaggi?</span>
                               <Button
                                 size="sm"
                                 onClick={(e) => {
@@ -695,7 +695,7 @@ export default function App() {
                               <TableHead className="w-[90px]">Codice</TableHead>
                               <TableHead className="w-[100px]">Link</TableHead>
                               <TableHead className="w-[110px]">ID-APP</TableHead>
-                              <TableHead className="w-[110px] text-center">Stato</TableHead>
+                              <TableHead className="w-[130px] text-center">Stato</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
