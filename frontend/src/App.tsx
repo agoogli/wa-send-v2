@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  LogOut,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { LoginForm } from "@/components/LoginForm"
 
 const API_BASE = "/api"
 
@@ -128,6 +130,7 @@ function StatusBadge({ stato }: { stato: string }) {
 }
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [imports, setImports] = useState<ImportMessaggio[]>([])
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
@@ -141,13 +144,33 @@ export default function App() {
   const [fileName, setFileName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Verify authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/check`)
+        if (res.ok) {
+          setIsAuthenticated(true)
+        } else {
+          setIsAuthenticated(false)
+        }
+      } catch {
+        setIsAuthenticated(false)
+      }
+    }
+    checkAuth()
+  }, [])
+
   // Poll WhatsApp status
   useEffect(() => {
+    if (!isAuthenticated) return
     const poll = async () => {
       try {
         const res = await fetch(`${API_BASE}/whatsapp/status`)
         if (res.ok) {
           setWaStatus(await res.json())
+        } else if (res.status === 401) {
+          setIsAuthenticated(false)
         }
       } catch {
         // Backend non disponibile
@@ -156,10 +179,11 @@ export default function App() {
     poll()
     const interval = setInterval(poll, 3000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isAuthenticated])
 
   // Fetch imports al mount
   useEffect(() => {
+    if (!isAuthenticated) return
     const fetchImports = async () => {
       try {
         const res = await fetch(`${API_BASE}/messages/imports`)
@@ -169,16 +193,19 @@ export default function App() {
           if (data.length > 0) {
             setExpandedId(data[0].id)
           }
+        } else if (res.status === 401) {
+          setIsAuthenticated(false)
         }
       } catch {
         // Backend non disponibile
       }
     }
     fetchImports()
-  }, [])
+  }, [isAuthenticated])
 
   // Connect to Socket.io for real-time updates
   useEffect(() => {
+    if (!isAuthenticated) return
     const socket = io({
       transports: ["websocket", "polling"],
     })
@@ -206,7 +233,7 @@ export default function App() {
     return () => {
       socket.disconnect()
     }
-  }, [])
+  }, [isAuthenticated])
 
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true)
@@ -228,6 +255,8 @@ export default function App() {
             setExpandedId(data[0].id)
           }
         }
+      } else if (res.status === 401) {
+        setIsAuthenticated(false)
       }
     } catch (err) {
       console.error("Upload fallito:", err)
@@ -247,6 +276,8 @@ export default function App() {
           const data: ImportMessaggio[] = await listRes.json()
           setImports(data)
         }
+      } else if (res.status === 401) {
+        setIsAuthenticated(false)
       }
     } catch (err) {
       console.error("Invio fallito:", err)
@@ -273,6 +304,8 @@ export default function App() {
             }
           }
         }
+      } else if (res.status === 401) {
+        setIsAuthenticated(false)
       } else {
         const errorData = await res.json()
         alert(errorData.message || "Errore durante l'eliminazione")
@@ -290,6 +323,23 @@ export default function App() {
   const inviatoCount = activeImport ? activeImport.righe.filter((r) => r.stato === "INVIATO").length : 0
   const erroreCount = activeImport ? activeImport.righe.filter((r) => r.stato === "ERRORE").length : 0
 
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-sm font-medium mt-4 text-muted-foreground animate-pulse">
+          Verifica sessione in corso...
+        </p>
+      </div>
+    )
+  }
+
+  if (isAuthenticated === false) {
+    return (
+      <LoginForm apiBase={API_BASE} onLoginSuccess={() => setIsAuthenticated(true)} />
+    )
+  }
+
   if (waStatus.status !== "connected") {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -302,7 +352,25 @@ export default function App() {
               </div>
               <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
             </div>
-            <StatusIndicator status={waStatus.status} />
+            <div className="flex items-center gap-4">
+              <StatusIndicator status={waStatus.status} />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await fetch(`${API_BASE}/auth/logout`, { method: "POST" })
+                    setIsAuthenticated(false)
+                  } catch (err) {
+                    console.error("Errore logout:", err)
+                  }
+                }}
+                className="gap-2 text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Esci</span>
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -386,7 +454,25 @@ export default function App() {
             </div>
             <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
           </div>
-          <StatusIndicator status={waStatus.status} />
+          <div className="flex items-center gap-4">
+            <StatusIndicator status={waStatus.status} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await fetch(`${API_BASE}/auth/logout`, { method: "POST" })
+                  setIsAuthenticated(false)
+                } catch (err) {
+                  console.error("Errore logout:", err)
+                }
+              }}
+              className="gap-2 text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Esci</span>
+            </Button>
+          </div>
         </div>
       </header>
 

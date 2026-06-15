@@ -55,3 +55,12 @@ model Sessione {
 
   @@map("sessioni")
 }
+
+/// Tabella per la configurazione del sistema (es. password hashata)
+model Configurazione {
+  chiave String @id @db.VarChar(2048)
+  valore String @db.VarChar(2048)
+
+  @@map("configurazioni")
+}
+
