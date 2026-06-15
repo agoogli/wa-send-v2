@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MessagesService } from './messages.service';
+import 'multer';
 
 @Controller('messages')
 export class MessagesController {
@@ -51,7 +52,7 @@ export class MessagesController {
     try {
       await this.messagesService.deleteImport(importId);
       return { success: true, message: 'Import eliminato con successo' };
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }

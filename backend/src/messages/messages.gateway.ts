@@ -9,7 +9,7 @@ import { RigaMessaggio } from '@prisma/client';
 })
 export class MessagesGateway {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   emitMessageUpdate(message: RigaMessaggio) {
     if (this.server) {

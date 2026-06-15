@@ -133,7 +133,7 @@ export class WhatsappService {
       const latest = await fetchLatestBaileysVersion();
       version = latest.version;
       this.logger.log(`Using WA Web version v${version.join('.')}`);
-    } catch (err) {
+    } catch (err: any) {
       this.logger.warn(`Failed to fetch latest WA version, using default: ${err.message}`);
     }
 
@@ -191,7 +191,7 @@ export class WhatsappService {
 
       await this.socket.sendMessage(jid, { text: content });
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       const message =
         error instanceof Error ? error.message : 'Errore sconosciuto';
       this.logger.error(`Invio fallito a ${recipient}: ${message}`);
