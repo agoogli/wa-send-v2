@@ -14,6 +14,9 @@ RUN npm ci --workspace=backend
 # Copy the source code and configurations
 COPY backend ./backend
 
+# Clean up any local TS build cache if copied
+RUN rm -f backend/tsconfig.tsbuildinfo
+
 # Generate Prisma client
 RUN npm run prisma:generate -w backend
 
