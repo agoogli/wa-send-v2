@@ -1,9 +1,9 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline Produzione
 
 on:
   push:
     branches:
-      - trunk  # Si attiva al push sul branch principale
+      - release  # Si attiva al push sul branch release
 
 jobs:
   build-and-push:
