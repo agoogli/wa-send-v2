@@ -34,7 +34,7 @@ RUN npm ci --omit=dev --workspace=backend
 # Copy built code and prisma files from the builder stage
 COPY --from=builder /usr/src/app/backend/dist ./backend/dist
 COPY --from=builder /usr/src/app/backend/prisma ./backend/prisma
-COPY --from=builder /usr/src/app/backend/node_modules/.prisma ./backend/node_modules/.prisma
+COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /usr/src/app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 # Expose NestJS default port
