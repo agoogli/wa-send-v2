@@ -697,7 +697,7 @@ export default function App() {
                         <div className="flex items-center justify-end gap-3 p-4 border-b border-border/40 bg-muted/20">
                           {confirmDeleteId === imp.id ? (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
-                              <span className="text-xs text-danger font-semibold">Confermi l'eliminazione dell'import?</span>
+                              <span className="text-sm text-danger font-semibold">Confermi l'eliminazione dell'import?</span>
                               <Button
                                 size="sm"
                                 variant="danger"
@@ -723,7 +723,7 @@ export default function App() {
                             </div>
                           ) : confirmSendId === imp.id ? (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
-                              <span className="text-xs text-warning font-semibold">Confermi l'invio di {impImportatoCount} messaggi?</span>
+                              <span className="text-sm text-warning font-semibold">Confermi l'invio di {impImportatoCount} messaggi?</span>
                               <Button
                                 size="sm"
                                 onClick={(e) => {
