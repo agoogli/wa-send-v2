@@ -280,6 +280,7 @@ export class MessagesService implements OnModuleInit {
           data: {
             stato: newStato,
             errore: result.error || null,
+            inviato: result.success ? new Date() : null,
           },
         });
 

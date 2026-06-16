@@ -39,6 +39,8 @@ model RigaMessaggio {
 
   idImportMessaggio Int            @map("id_import_messaggio")
   importMessaggio   ImportMessaggio @relation(fields: [idImportMessaggio], references: [id], onDelete: Cascade)
+  created           DateTime       @default(now())
+  inviato           DateTime?
 
   @@map("righe_messaggi")
 }

@@ -38,6 +38,24 @@ import { LoginForm } from "@/components/LoginForm"
 
 const API_BASE = "/api"
 
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "-"
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return "-"
+  
+  const pad = (n: number) => String(n).padStart(2, "0")
+  
+  const dd = pad(d.getDate())
+  const mm = pad(d.getMonth() + 1)
+  const yy = String(d.getFullYear()).slice(-2)
+  
+  const hh = pad(d.getHours())
+  const min = pad(d.getMinutes())
+  const ss = pad(d.getSeconds())
+  
+  return `${dd}/${mm}/${yy} ${hh}:${min}:${ss}`
+}
+
 interface RigaMessaggio {
   id: number
   testo: string
@@ -49,6 +67,8 @@ interface RigaMessaggio {
   stato: string
   errore?: string | null
   idImportMessaggio: number
+  created: string
+  inviato?: string | null
 }
 
 interface ImportMessaggio {
@@ -105,7 +125,7 @@ function StatusBadge({ stato }: { stato: string }) {
     PENDING: {
       variant: "warning",
       icon: Clock,
-      label: "Invio...",
+      label: "Invio in corso",
     },
     INVIATO: {
       variant: "success",
@@ -554,7 +574,7 @@ export default function App() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-warning flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> Invio...
+                  <Clock className="h-3.5 w-3.5" /> Invio in corso
                 </span>
                 <span className="font-semibold tabular-nums">{pendingCount}</span>
               </div>
@@ -645,7 +665,7 @@ export default function App() {
                         )}
                         {impPendingCount > 0 && (
                           <Badge variant="warning" className="text-[10px] py-0.5 animate-pulse">
-                            {impPendingCount} invio...
+                            {impPendingCount} invio in corso
                           </Badge>
                         )}
                         {impInviatoCount > 0 && (
@@ -775,12 +795,11 @@ export default function App() {
                           <TableHeader>
                             <TableRow className="bg-muted/20 hover:bg-muted/20">
                               <TableHead className="w-[50px] text-center">#</TableHead>
+                              <TableHead className="w-[90px]">Codice</TableHead>
                               <TableHead className="w-[200px]">Nominativo</TableHead>
                               <TableHead className="w-[130px]">Cellulare</TableHead>
                               <TableHead className="w-auto">Testo</TableHead>
-                              <TableHead className="w-[90px]">Codice</TableHead>
-                              <TableHead className="w-[100px]">Link</TableHead>
-                              <TableHead className="w-[110px]">ID-APP</TableHead>
+                              <TableHead className="w-[160px]">Data Invio</TableHead>
                               <TableHead className="w-[130px] text-center">Stato</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -793,28 +812,25 @@ export default function App() {
                                 <TableCell className="font-mono text-xs text-muted-foreground text-center">
                                   {msg.id}
                                 </TableCell>
-                                <TableCell className="font-medium truncate" title={msg.nominativo}>
+                                <TableCell className="text-xs text-muted-foreground truncate" title={msg.codice}>
+                                  {msg.codice || "-"}
+                                </TableCell>
+                                <TableCell className="font-medium truncate text-sm text-muted-foreground" title={msg.nominativo}>
                                   {msg.nominativo}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs">
+                                <TableCell className="font-mono text-xs text-muted-foreground">
                                   {msg.cellulare}
                                 </TableCell>
-                                <TableCell className="select-text">
-                                  <p className="truncate text-sm" title={msg.testo}>{msg.testo}</p>
+                                <TableCell className="select-text text-muted-foreground">
+                                  <p className="truncate text-sm text-muted-foreground" title={msg.testo}>{msg.testo}</p>
                                   {msg.errore && (
                                     <p className="text-[11px] text-danger mt-1 font-medium line-clamp-2" title={msg.errore}>
                                       ⚠️ {msg.errore}
                                     </p>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-xs text-muted-foreground truncate" title={msg.codice}>
-                                  {msg.codice || "-"}
-                                </TableCell>
-                                <TableCell className="text-xs text-muted-foreground font-mono truncate" title={msg.link}>
-                                  {msg.link || "-"}
-                                </TableCell>
-                                <TableCell className="text-xs text-muted-foreground font-mono truncate" title={msg.idApp}>
-                                  {msg.idApp || "-"}
+                                <TableCell className="font-mono text-xs text-muted-foreground">
+                                  {formatDateTime(msg.inviato)}
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <StatusBadge stato={msg.stato} />
