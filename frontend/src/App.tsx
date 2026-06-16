@@ -409,7 +409,7 @@ export default function App() {
                   </div>
                   <div className="text-xs text-muted-foreground space-y-2 max-w-xs text-left list-decimal pl-4">
                     <p>1. Apri <strong>WhatsApp</strong> sul telefono.</p>
-                    <p>2. Menu (tre puntini) o Impostazioni $\rightarrow$ <strong>Dispositivi collegati</strong>.</p>
+                    <p>2. Menu (tre puntini) o Impostazioni - <strong>Dispositivi collegati</strong>.</p>
                     <p>3. Tocca su <strong>Collega un dispositivo</strong>.</p>
                     <p>4. Inquadra lo schermo per catturare il codice QR.</p>
                   </div>

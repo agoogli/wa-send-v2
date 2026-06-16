@@ -29,4 +29,5 @@ backend/auth_info/
 # Logs
 *.log
 npm-debug.log*
-SMS.html
+
+tsconfig.tsbuildinfo

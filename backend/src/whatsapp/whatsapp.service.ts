@@ -155,15 +155,28 @@ export class WhatsappService {
 
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut;
         this.logger.warn(
-          `Connessione chiusa (status: ${statusCode}). Riconnessione: ${shouldReconnect}`,
+          `Connessione chiusa (status: ${statusCode}). Riconnessione: ${!isLoggedOut}`,
         );
         this.status = 'disconnected';
         this.qrDataUrl = null;
         this.socket = null;
 
-        if (shouldReconnect) {
+        if (isLoggedOut) {
+          this.logger.log(
+            'Credenziali sessione non più valide o disconnesse (401). Pulizia delle sessioni nel DB...',
+          );
+          try {
+            await this.prisma.sessione.deleteMany({});
+            this.logger.log('Tabella sessioni svuotata con successo.');
+          } catch (err: any) {
+            this.logger.error(`Errore svuotamento sessioni: ${err.message}`);
+          }
+          // Forza la riconnessione dopo la pulizia del DB per generare un nuovo QR code
+          this.logger.log('Avvio nuova connessione per generare il codice QR...');
+          setTimeout(() => this.connect(), 2000);
+        } else {
           setTimeout(() => this.connect(), 3000);
         }
       }
