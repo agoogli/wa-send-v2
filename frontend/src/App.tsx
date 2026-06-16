@@ -705,7 +705,7 @@ export default function App() {
                                   e.stopPropagation()
                                   handleDelete(imp.id)
                                 }}
-                                className="h-8 py-1 px-3 text-xs"
+                                className="h-9"
                               >
                                 Ok
                               </Button>
@@ -716,7 +716,7 @@ export default function App() {
                                   e.stopPropagation()
                                   setConfirmDeleteId(null)
                                 }}
-                                className="h-8 py-1 px-3 text-xs"
+                                className="h-9"
                               >
                                 Annulla
                               </Button>
@@ -731,7 +731,7 @@ export default function App() {
                                   setConfirmSendId(null)
                                   handleSend(imp.id)
                                 }}
-                                className="h-8 py-1 px-3 text-xs"
+                                className="h-9"
                               >
                                 Ok
                               </Button>
@@ -742,7 +742,7 @@ export default function App() {
                                   e.stopPropagation()
                                   setConfirmSendId(null)
                                 }}
-                                className="h-8 py-1 px-3 text-xs"
+                                className="h-9"
                               >
                                 Annulla
                               </Button>
@@ -800,7 +800,7 @@ export default function App() {
                               <TableHead className="w-[130px]">Cellulare</TableHead>
                               <TableHead className="w-auto">Testo</TableHead>
                               <TableHead className="w-[160px]">Data Invio</TableHead>
-                              <TableHead className="w-[130px] text-center">Stato</TableHead>
+                              <TableHead className="w-[160px] text-center">Stato</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
