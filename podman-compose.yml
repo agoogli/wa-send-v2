@@ -13,9 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: ghcr.io/agoogli/wa-send-v2/wa-send-backend:latest
     container_name: wa-send-backend
     restart: always
     environment:
@@ -27,9 +25,7 @@ services:
       - db
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: ghcr.io/agoogli/wa-send-v2/wa-send-frontend:latest
     container_name: wa-send-frontend
     restart: always
     ports:
