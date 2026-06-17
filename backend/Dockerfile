@@ -1,5 +1,5 @@
 # Stage 1: Build the NestJS app
-FROM node:22-alpine AS builder
+FROM docker.io/library/node:22-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -24,7 +24,7 @@ RUN npm run prisma:generate -w backend
 RUN npm run build -w backend
 
 # Stage 2: Production image
-FROM node:22-alpine
+FROM docker.io/library/node:22-alpine
 
 WORKDIR /usr/src/app
 

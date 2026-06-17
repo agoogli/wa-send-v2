@@ -1,5 +1,5 @@
 # Stage 1: Build the React application
-FROM node:22-alpine AS builder
+FROM docker.io/library/node:22-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -18,7 +18,7 @@ COPY frontend ./frontend
 RUN npm run build -w frontend
 
 # Stage 2: Serve using Nginx
-FROM nginx:alpine
+FROM docker.io/library/nginx:alpine
 
 # Copy built static files to Nginx serve directory
 COPY --from=builder /usr/src/app/frontend/dist /usr/share/nginx/html
