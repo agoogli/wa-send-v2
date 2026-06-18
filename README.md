@@ -184,3 +184,24 @@ podman exec -t wa-send-db pg_dump -U wa-send-v2 wa-send-v2 > backup_db_$(date +%
 ```
 
 Questo genererà un file .sql sul tuo server con l'esatta istantanea del database da conservare per sicurezza.
+
+## Start on boot
+
+Sono possibili due strade: systemd o quadlet.
+
+podman-compose -> test/sviluppo
+systemd -> boot persistente
+quadlet -> boot persistente, ma più idoneo
+
+Ci assicura che dopo il logout dell'utente corrente, i pods avviati rimangano in background:
+
+```
+sudo loginctl enable-linger <utente>
+```
+
+Salva la configurazione per agire con i pod su porte inferiori alla 1024, e applica questa configurazione al boot
+
+```
+echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee /etc/sysctl.d/99-podman-privileged-ports.conf
+sudo sysctl --system
+```
