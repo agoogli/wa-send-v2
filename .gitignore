@@ -31,3 +31,4 @@ backend/auth_info/
 npm-debug.log*
 
 tsconfig.tsbuildinfo
+backend/tsconfig.tsbuildinfo

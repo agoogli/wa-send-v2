@@ -10,6 +10,7 @@ import {
   HttpException,
   HttpStatus,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MessagesService } from './messages.service';
@@ -44,9 +45,12 @@ export class MessagesController {
   }
 
   @Post('send')
-  async sendAll(@Query('importId') importId?: string) {
+  async sendAll(
+    @Query('importId') importId?: string,
+    @Body('messageIds') messageIds?: number[],
+  ) {
     const id = importId ? parseInt(importId, 10) : undefined;
-    return this.messagesService.sendAll(id);
+    return this.messagesService.sendAll(id, messageIds);
   }
 
   @Delete(':id')
