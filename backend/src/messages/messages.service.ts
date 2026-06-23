@@ -213,11 +213,15 @@ export class MessagesService implements OnModuleInit {
   /**
    * Invia tutti i messaggi IMPORTATO di un determinato import via WhatsApp.
    */
-  async sendAll(importId?: number, messageIds?: number[]) {
-    const where: Record<string, any> = { stato: StatoMessaggio.IMPORTATO };
-    if (importId) {
-      where.idImportMessaggio = importId;
+  async sendAll(importId: number, messageIds?: number[]) {
+    if (!importId) {
+      throw new Error('ID Importazione obbligatorio per l\'invio dei messaggi');
     }
+
+    const where: Record<string, any> = {
+      stato: StatoMessaggio.IMPORTATO,
+      idImportMessaggio: importId,
+    };
     if (messageIds && messageIds.length > 0) {
       where.id = { in: messageIds };
     }

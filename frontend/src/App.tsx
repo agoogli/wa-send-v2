@@ -885,7 +885,7 @@ export default function App() {
                               return (
                                 <TableRow
                                   key={msg.id}
-                                  className={`transition-colors ${isRowSelected ? "bg-white/[0.04] hover:bg-white/[0.08]" : "hover:bg-muted/10"}`}
+                                  className={`transition-colors ${isRowSelected ? "bg-sky-500/10 hover:bg-sky-500/15" : "hover:bg-muted/10"}`}
                                 >
                                   <TableCell className="w-[45px] text-center">
                                     {msg.stato === "IMPORTATO" ? (

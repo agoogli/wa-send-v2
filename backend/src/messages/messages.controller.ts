@@ -49,7 +49,19 @@ export class MessagesController {
     @Query('importId') importId?: string,
     @Body('messageIds') messageIds?: number[],
   ) {
-    const id = importId ? parseInt(importId, 10) : undefined;
+    if (!importId) {
+      throw new HttpException(
+        'ID Importazione obbligatorio',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const id = parseInt(importId, 10);
+    if (isNaN(id)) {
+      throw new HttpException(
+        'ID Importazione non valido',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     return this.messagesService.sendAll(id, messageIds);
   }
 
