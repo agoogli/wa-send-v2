@@ -10,6 +10,7 @@ import {
   HttpException,
   HttpStatus,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MessagesService } from './messages.service';
@@ -44,9 +45,24 @@ export class MessagesController {
   }
 
   @Post('send')
-  async sendAll(@Query('importId') importId?: string) {
-    const id = importId ? parseInt(importId, 10) : undefined;
-    return this.messagesService.sendAll(id);
+  async sendAll(
+    @Query('importId') importId?: string,
+    @Body('messageIds') messageIds?: number[],
+  ) {
+    if (!importId) {
+      throw new HttpException(
+        'ID Importazione obbligatorio',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const id = parseInt(importId, 10);
+    if (isNaN(id)) {
+      throw new HttpException(
+        'ID Importazione non valido',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return this.messagesService.sendAll(id, messageIds);
   }
 
   @Delete(':id')

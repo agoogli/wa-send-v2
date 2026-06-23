@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Lock, Loader2, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import packageJson from "../../package.json"
 import {
   Card,
   CardContent,
@@ -114,6 +115,9 @@ export function LoginForm({ apiBase, onLoginSuccess }: LoginFormProps) {
                 )}
               </Button>
             </form>
+            <div className="text-center text-[11px] text-muted-foreground/50 mt-4 select-none">
+              v{packageJson.version}
+            </div>
           </CardContent>
         </Card>
       </main>

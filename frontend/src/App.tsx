@@ -159,10 +159,53 @@ export default function App() {
     status: "disconnected",
     qrCode: null,
   })
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Record<number, boolean>>({})
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Toggle all checkboxes for a specific import
+  const handleToggleAll = (impId: number) => {
+    const imp = imports.find((i) => i.id === impId)
+    if (!imp) return
+    const selectable = imp.righe.filter((r) => r.stato === "IMPORTATO")
+    const selected = selectable.filter((r) => selectedMessageIds[r.id])
+    const allSelected = selectable.length > 0 && selected.length === selectable.length
+
+    setSelectedMessageIds((prev) => {
+      const next = { ...prev }
+      for (const r of selectable) {
+        next[r.id] = !allSelected
+      }
+      return next
+    })
+  }
+
+  // Toggle single row checkbox
+  const handleToggleRow = (rowId: number) => {
+    setSelectedMessageIds((prev) => ({
+      ...prev,
+      [rowId]: !prev[rowId],
+    }))
+  }
+
+  // Auto-select all IMPORTATO messages on load or upload
+  useEffect(() => {
+    setSelectedMessageIds((prev) => {
+      const next = { ...prev }
+      let changed = false
+      imports.forEach((imp) => {
+        imp.righe.forEach((riga) => {
+          if (riga.stato === "IMPORTATO" && next[riga.id] === undefined) {
+            next[riga.id] = true
+            changed = true
+          }
+        })
+      })
+      return changed ? next : prev
+    })
+  }, [imports])
 
   // Verify authentication on mount
   useEffect(() => {
@@ -287,8 +330,21 @@ export default function App() {
 
   const handleSend = useCallback(async (importId: number) => {
     setSending(true)
+    const targetImport = imports.find((imp) => imp.id === importId)
+    const selectedIds = targetImport
+      ? targetImport.righe
+          .filter((r) => r.stato === "IMPORTATO" && selectedMessageIds[r.id])
+          .map((r) => r.id)
+      : []
+
     try {
-      const res = await fetch(`${API_BASE}/messages/send?importId=${importId}`, { method: "POST" })
+      const res = await fetch(`${API_BASE}/messages/send?importId=${importId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messageIds: selectedIds }),
+      })
       if (res.ok) {
         // Ricarica per aggiornare gli stati
         const listRes = await fetch(`${API_BASE}/messages/imports`)
@@ -304,7 +360,7 @@ export default function App() {
     } finally {
       setSending(false)
     }
-  }, [])
+  }, [imports, selectedMessageIds])
 
   const handleDelete = useCallback(async (importId: number) => {
     try {
@@ -519,7 +575,10 @@ export default function App() {
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0]
-                  if (file) handleUpload(file)
+                  if (file) {
+                    handleUpload(file)
+                  }
+                  e.target.value = ""
                 }}
               />
               <div className="flex items-center gap-4">
@@ -619,7 +678,12 @@ export default function App() {
                 timeStyle: "medium",
               })
 
-              const impImportatoCount = imp.righe.filter((r) => r.stato === "IMPORTATO").length
+              const selectableRows = imp.righe.filter((r) => r.stato === "IMPORTATO")
+              const selectedRows = selectableRows.filter((r) => selectedMessageIds[r.id])
+              const isAllSelected = selectableRows.length > 0 && selectedRows.length === selectableRows.length
+              const isSomeSelected = selectedRows.length > 0 && selectedRows.length < selectableRows.length
+              const impImportatoCount = selectableRows.length
+              const selectedCount = selectedRows.length
               const impInviatoCount = imp.righe.filter((r) => r.stato === "INVIATO").length
               const impErroreCount = imp.righe.filter((r) => r.stato === "ERRORE").length
               const impPendingCount = imp.righe.filter((r) => r.stato === "PENDING").length
@@ -723,7 +787,7 @@ export default function App() {
                             </div>
                           ) : confirmSendId === imp.id ? (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
-                              <span className="text-sm text-warning font-semibold">Confermi l'invio di {impImportatoCount} messaggi?</span>
+                              <span className="text-sm text-warning font-semibold">Confermi l'invio di {selectedCount} messaggi?</span>
                               <Button
                                 size="sm"
                                 onClick={(e) => {
@@ -758,7 +822,7 @@ export default function App() {
                                     setConfirmSendId(imp.id)
                                     setConfirmDeleteId(null)
                                   }}
-                                  disabled={sending || waStatus.status !== "connected"}
+                                  disabled={sending || waStatus.status !== "connected" || selectedCount === 0}
                                   className="gap-2 h-9"
                                 >
                                   {sending ? (
@@ -766,7 +830,7 @@ export default function App() {
                                   ) : (
                                     <Send className="h-3.5 w-3.5" />
                                   )}
-                                  {sending ? "Invio..." : `Invia ${impImportatoCount} messaggi`}
+                                  {sending ? "Invio..." : `Invia ${selectedCount} messaggi`}
                                 </Button>
                               )}
                               {canDelete && (
@@ -794,6 +858,21 @@ export default function App() {
                         <Table className="w-full table-fixed border-collapse">
                           <TableHeader>
                             <TableRow className="bg-muted/20 hover:bg-muted/20">
+                              <TableHead className="w-[45px] text-center">
+                                {selectableRows.length > 0 && (
+                                  <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-ring cursor-pointer accent-primary"
+                                    checked={isAllSelected}
+                                    ref={(el) => {
+                                      if (el) {
+                                        el.indeterminate = isSomeSelected
+                                      }
+                                    }}
+                                    onChange={() => handleToggleAll(imp.id)}
+                                  />
+                                )}
+                              </TableHead>
                               <TableHead className="w-[50px] text-center">#</TableHead>
                               <TableHead className="w-[90px]">Codice</TableHead>
                               <TableHead className="w-[200px]">Nominativo</TableHead>
@@ -804,39 +883,52 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {imp.righe.map((msg) => (
-                              <TableRow
-                                key={msg.id}
-                                className="hover:bg-muted/10 transition-colors"
-                              >
-                                <TableCell className="font-mono text-xs text-muted-foreground text-center">
-                                  {msg.id}
-                                </TableCell>
-                                <TableCell className="text-xs text-muted-foreground truncate" title={msg.codice}>
-                                  {msg.codice || "-"}
-                                </TableCell>
-                                <TableCell className="font-medium truncate text-sm text-muted-foreground" title={msg.nominativo}>
-                                  {msg.nominativo}
-                                </TableCell>
-                                <TableCell className="font-mono text-xs text-muted-foreground">
-                                  {msg.cellulare}
-                                </TableCell>
-                                <TableCell className="select-text text-muted-foreground">
-                                  <p className="truncate text-sm text-muted-foreground" title={msg.testo}>{msg.testo}</p>
-                                  {msg.errore && (
-                                    <p className="text-[11px] text-danger mt-1 font-medium line-clamp-2" title={msg.errore}>
-                                      ⚠️ {msg.errore}
-                                    </p>
-                                  )}
-                                </TableCell>
-                                <TableCell className="font-mono text-xs text-muted-foreground">
-                                  {formatDateTime(msg.inviato)}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <StatusBadge stato={msg.stato} />
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {imp.righe.map((msg) => {
+                              const isRowSelected = msg.stato === "IMPORTATO" && !!selectedMessageIds[msg.id]
+                              return (
+                                <TableRow
+                                  key={msg.id}
+                                  className={`transition-colors ${isRowSelected ? "bg-sky-500/10 hover:bg-sky-500/15" : "hover:bg-muted/10"}`}
+                                >
+                                  <TableCell className="w-[45px] text-center">
+                                    {msg.stato === "IMPORTATO" ? (
+                                      <input
+                                        type="checkbox"
+                                        className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-ring cursor-pointer accent-primary"
+                                        checked={!!selectedMessageIds[msg.id]}
+                                        onChange={() => handleToggleRow(msg.id)}
+                                      />
+                                    ) : null}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs text-muted-foreground text-center">
+                                    {msg.id}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground truncate" title={msg.codice}>
+                                    {msg.codice || "-"}
+                                  </TableCell>
+                                  <TableCell className="font-medium truncate text-sm text-muted-foreground" title={msg.nominativo}>
+                                    {msg.nominativo}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs text-muted-foreground">
+                                    {msg.cellulare}
+                                  </TableCell>
+                                  <TableCell className="select-text text-muted-foreground">
+                                    <p className="truncate text-sm text-muted-foreground" title={msg.testo}>{msg.testo}</p>
+                                    {msg.errore && (
+                                      <p className="text-[11px] text-danger mt-1 font-medium line-clamp-2" title={msg.errore}>
+                                        ⚠️ {msg.errore}
+                                      </p>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs text-muted-foreground">
+                                    {formatDateTime(msg.inviato)}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <StatusBadge stato={msg.stato} />
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
                           </TableBody>
                         </Table>
                       </div>
