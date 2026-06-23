@@ -575,7 +575,10 @@ export default function App() {
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0]
-                  if (file) handleUpload(file)
+                  if (file) {
+                    handleUpload(file)
+                  }
+                  e.target.value = ""
                 }}
               />
               <div className="flex items-center gap-4">

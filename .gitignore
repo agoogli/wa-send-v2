@@ -29,6 +29,5 @@ backend/auth_info/
 # Logs
 *.log
 npm-debug.log*
-
-tsconfig.tsbuildinfo
-backend/tsconfig.tsbuildinfo
+# TypeScript build info cache
+*.tsbuildinfo
