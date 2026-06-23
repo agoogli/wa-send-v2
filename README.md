@@ -148,7 +148,7 @@ podman-compose pull backend frontend
 Riavvia solo i container di backend e frontend tramite l'opzione --no-deps:
 
 ```
-podman-compose up -d --no-deps backend frontend
+podman-compose up -d --force-recreate --no-deps backend frontend
 ```
 
 Nota: L'opzione --no-deps impedisce il riavvio o la ricreazione del container del database (db), garantendo che il DB rimanga sempre attivo durante l'aggiornamento dell'applicazione.
