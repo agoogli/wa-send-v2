@@ -263,8 +263,8 @@ export class MessagesService implements OnModuleInit {
         const job = this.queue.shift();
         if (!job) continue;
 
-        // Pause between 900ms and 3000ms
-        const delayMs = Math.floor(Math.random() * (3000 - 900 + 1)) + 900;
+        // Pause between 8s and 13s
+        const delayMs = Math.floor(Math.random() * (13500 - 8500 + 1)) + 8500;
         await new Promise((resolve) => setTimeout(resolve, delayMs));
 
         // Check if message still exists and is PENDING in DB
