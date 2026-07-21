@@ -28,16 +28,27 @@ export class WhatsappService {
   }
 
   /**
-   * Pulisce ed estrae il titolo del libro dal messaggio originale.
+   * Genera il parametro {{1}} del template per il caso singolare o plurale.
    */
-  private extractBookTitle(content: string, nominativo?: string, link?: string): string {
+  private buildTemplateParam1(content: string, nominativo?: string, link?: string): string {
+    // Caso plurale: "Gentile cliente, sono arrivati 6 libri nuovi da Lei prenotati."
+    const pluralMatch = content.match(/sono\s+arrivati\s+(\d+)\s+libri\s+nuovi/i);
+    if (pluralMatch) {
+      const count = pluralMatch[1];
+      return `sono arrivati ${count} libri nuovi da Lei prenotati`;
+    }
+
+    // Caso singolare: "Gentile cliente e' arrivato il libro nuovo NEW STEP UP 2..."
     let clean = content;
 
-    // Rimuove il saluto e i prefissi del tipo "Buongiorno e' arrivato l'unico libro prenotato "
+    // Rimuove il saluto e i prefissi del tipo "Gentile cliente e' arrivato il libro nuovo "
     clean = clean.replace(
-      /^buongiorno[\s,']*(?:e['\s]*arrivato|sono\s+arrivati)?\s*(?:l'unico|i|il|i\s+libri|il\s+libro)?\s*libr[oi]\s*prenotat[oi]\s*/i,
+      /^gentile\s+cliente[\s,']*(?:e['\s]*arrivato|è\s+arrivato)?\s*(?:il\s+libro)?\s*(?:nuovo)?\s*/i,
       ''
     );
+
+    // Rimuove la parte finale del tipo " da Lei prenotato. LO PRESTI..."
+    clean = clean.replace(/\s+da\s+lei\s+(?:prenotato|p).*$/i, '');
 
     // Rimuove il nominativo se presente
     if (nominativo) {
@@ -58,7 +69,7 @@ export class WhatsappService {
     clean = clean.replace(/^\s*\.?\s*\.?\s*/, '');
     clean = clean.trim();
 
-    return clean;
+    return `è arrivato il libro nuovo da Lei prenotato: "${clean}"`;
   }
 
   /**
@@ -82,20 +93,14 @@ export class WhatsappService {
     }
 
     try {
-      // 1. Determina singolare o plurale
-      const isPlural = content.toLowerCase().includes('arrivati') || content.toLowerCase().includes('libri');
-      const verbPrefix = isPlural 
-        ? 'sono arrivati i libri da Lei prenotati:' 
-        : 'è arrivato il libro da Lei prenotato:';
+      // 1. Genera il primo parametro del template (singolare o plurale)
+      const param1 = this.buildTemplateParam1(content, nominativo, link);
 
-      // 2. Estrae il titolo/titoli del libro
-      const bookTitle = this.extractBookTitle(content, nominativo, link);
-
-      // 3. Pulisce il numero di telefono (solo cifre, senza +)
+      // 2. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
 
-      // 4. Prepara il payload per il template Meta tramite SendApp
-      // I parametri sono posizionali e corrispondono a {{1}}, {{2}}, {{3}}, {{4}} nel template
+      // 3. Prepara il payload per il template Meta tramite SendApp
+      // I parametri sono posizionali e corrispondono a {{1}}, {{2}}, {{3}} nel template
       const payload = {
         phone: cleanPhone,
         template: {
@@ -105,8 +110,7 @@ export class WhatsappService {
             {
               type: 'body',
               parameters: [
-                { type: 'text', text: verbPrefix },
-                { type: 'text', text: bookTitle },
+                { type: 'text', text: param1 },
                 { type: 'text', text: nominativo || '' },
                 { type: 'text', text: link || '' },
               ],
