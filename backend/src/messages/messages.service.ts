@@ -17,7 +17,7 @@ export interface ParsedMessage {
 @Injectable()
 export class MessagesService implements OnModuleInit {
   private readonly logger = new Logger(MessagesService.name);
-  private queue: { id: number; cellulare: string; testo: string }[] = [];
+  private queue: { id: number; cellulare: string; testo: string; nominativo?: string; link?: string }[] = [];
   private isProcessing = false;
 
   constructor(
@@ -245,6 +245,8 @@ export class MessagesService implements OnModuleInit {
       id: m.id,
       cellulare: m.cellulare,
       testo: m.testo,
+      nominativo: m.nominativo,
+      link: m.link,
     }));
     this.queue.push(...jobs);
 
@@ -276,7 +278,12 @@ export class MessagesService implements OnModuleInit {
           continue;
         }
 
-        const result = await this.whatsapp.sendMessage(job.cellulare, job.testo);
+        const result = await this.whatsapp.sendMessage(
+          job.cellulare,
+          job.testo,
+          job.nominativo,
+          job.link,
+        );
 
         const newStato = result.success
           ? StatoMessaggio.INVIATO
@@ -287,7 +294,6 @@ export class MessagesService implements OnModuleInit {
           data: {
             stato: newStato,
             errore: result.error || null,
-            inviato: result.success ? new Date() : null,
           },
         });
 
