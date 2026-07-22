@@ -28,52 +28,13 @@ export class WhatsappService {
   }
 
   /**
-   * Genera il parametro {{1}} del template per il caso singolare o plurale.
-   */
-  private buildTemplateParam1(content: string, nominativo?: string, link?: string): string {
-    // Caso plurale: "Gentile cliente, sono arrivati 6 libri nuovi da Lei prenotati."
-    const pluralMatch = content.match(/sono\s+arrivati\s+(\d+)\s+libri\s+nuovi/i);
-    if (pluralMatch) {
-      const count = pluralMatch[1];
-      return `sono arrivati ${count} libri nuovi da Lei prenotati`;
-    }
-
-    // Caso singolare: "Gentile cliente e' arrivato il libro nuovo NEW STEP UP 2..."
-    let clean = content;
-
-    // Rimuove il saluto e i prefissi del tipo "Gentile cliente e' arrivato il libro nuovo "
-    clean = clean.replace(
-      /^gentile\s+cliente[\s,']*(?:e['\s]*arrivato|è\s+arrivato)?\s*(?:il\s+libro)?\s*(?:nuovo)?\s*/i,
-      ''
-    );
-
-    // Rimuove la parte finale del tipo " da Lei prenotato. LO PRESTI..."
-    clean = clean.replace(/\s+da\s+lei\s+(?:prenotato|p).*$/i, '');
-
-    // Rimuove il nominativo se presente
-    if (nominativo) {
-      const nameEscaped = nominativo.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const nameRegex = new RegExp(`\\.?\\s*\\.?\\s*${nameEscaped}.*`, 'i');
-      clean = clean.replace(nameRegex, '');
-    }
-
-    // Rimuove il link se presente (preceduto da >)
-    if (link) {
-      const linkEscaped = link.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const linkRegex = new RegExp(`>\\s*${linkEscaped}.*`, 'i');
-      clean = clean.replace(linkRegex, '');
-    }
-
-    // Rimuove frecce, punti e spazi residui
-    clean = clean.replace(/\.?\s*>\s*$/, '');
-    clean = clean.replace(/^\s*\.?\s*\.?\s*/, '');
-    clean = clean.trim();
-
-    return `è arrivato il libro nuovo da Lei prenotato: "${clean}"`;
-  }
-
-  /**
    * Invia un messaggio tramite le API di SendApp utilizzando i template ufficiali di Meta.
+   *
+   * Formato del Template raccomandato per Meta:
+   * "Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Maggiori dettagli al link > {{2}}. Cordiali saluti."
+   *
+   * - {{1}} = Nominativo cliente (es. "MANGIANTE ANGELO")
+   * - {{2}} = URL completo (es. "https://smslnk.it/pl/?t=qO16IHZ")
    */
   async sendMessage(
     recipient: string,
@@ -93,14 +54,21 @@ export class WhatsappService {
     }
 
     try {
-      // 1. Genera il primo parametro del template (singolare o plurale)
-      const param1 = this.buildTemplateParam1(content, nominativo, link);
+      // 1. Parametro {{1}} = Nominativo cliente
+      const param1 = (nominativo || '').trim();
 
-      // 2. Pulisce il numero di telefono (solo cifre, senza +)
+      // 2. Parametro {{2}} = URL completo generato concatenando il codice dalla colonna "Link" (es. "https://smslnk.it/pl/?t=qO16IHZ")
+      const rawLink = (link || '').trim();
+      const param2 = rawLink
+        ? (rawLink.startsWith('http://') || rawLink.startsWith('https://')
+            ? rawLink
+            : `https://smslnk.it/pl/?t=${rawLink}`)
+        : '';
+
+      // 3. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
 
-      // 3. Prepara il payload per il template Meta tramite SendApp
-      // I parametri sono posizionali e corrispondono a {{1}}, {{2}}, {{3}} nel template
+      // 4. Prepara il payload per il template Meta tramite SendApp con 2 parametri posizionali
       const payload = {
         phone: cleanPhone,
         template: {
@@ -111,8 +79,7 @@ export class WhatsappService {
               type: 'body',
               parameters: [
                 { type: 'text', text: param1 },
-                { type: 'text', text: nominativo || '' },
-                { type: 'text', text: link || '' },
+                { type: 'text', text: param2 },
               ],
             },
           ],
