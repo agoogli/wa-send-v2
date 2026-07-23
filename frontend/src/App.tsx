@@ -454,7 +454,7 @@ export default function App() {
               <CardTitle className="text-base flex items-center gap-2">
                 Riepilogo
                 {activeImport && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-sm font-medium">
                     Import #{activeImport.id}
                   </Badge>
                 )}
@@ -561,28 +561,28 @@ export default function App() {
                       <span className="font-semibold text-sm sm:text-base">
                         Import #{imp.id} — {formattedDate}
                       </span>
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {imp.righe.length} messaggi
+                      <Badge variant="secondary" className="text-sm font-medium">
+                        {imp.righe.length === 1 ? "1 messaggio" : `${imp.righe.length} messaggi`}
                       </Badge>
                       <div className="flex gap-1.5 ml-2">
                         {impImportatoCount > 0 && (
-                          <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] py-0.5">
-                            {impImportatoCount} da inviare
+                          <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs py-0.5 font-medium">
+                            {impImportatoCount === 1 ? "1 da inviare" : `${impImportatoCount} da inviare`}
                           </Badge>
                         )}
                         {impPendingCount > 0 && (
-                          <Badge variant="warning" className="text-[10px] py-0.5 animate-pulse">
-                            {impPendingCount} invio in corso
+                          <Badge variant="warning" className="text-xs py-0.5 font-medium animate-pulse">
+                            {impPendingCount === 1 ? "1 invio in corso" : `${impPendingCount} invii in corso`}
                           </Badge>
                         )}
                         {impInviatoCount > 0 && (
-                          <Badge variant="success" className="text-[10px] py-0.5">
-                            {impInviatoCount} inviati
+                          <Badge variant="success" className="text-xs py-0.5 font-medium">
+                            {impInviatoCount === 1 ? "1 inviato" : `${impInviatoCount} inviati`}
                           </Badge>
                         )}
                         {impErroreCount > 0 && (
-                          <Badge variant="danger" className="text-[10px] py-0.5">
-                            {impErroreCount} errori
+                          <Badge variant="danger" className="text-xs py-0.5 font-medium">
+                            {impErroreCount === 1 ? "1 errore" : `${impErroreCount} errori`}
                           </Badge>
                         )}
                       </div>
@@ -630,7 +630,9 @@ export default function App() {
                             </div>
                           ) : confirmSendId === imp.id ? (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
-                              <span className="text-sm text-warning font-semibold">Confermi l'invio di {selectedCount} messaggi?</span>
+                              <span className="text-sm text-warning font-semibold">
+                                Confermi l'invio di {selectedCount === 1 ? "1 messaggio" : `${selectedCount} messaggi`}?
+                              </span>
                               <Button
                                 size="sm"
                                 onClick={(e) => {
@@ -673,7 +675,11 @@ export default function App() {
                                   ) : (
                                     <Send className="h-3.5 w-3.5" />
                                   )}
-                                  {sending ? "Invio..." : `Invia ${selectedCount} messaggi`}
+                                  {sending
+                                    ? "Invio..."
+                                    : selectedCount === 1
+                                    ? "Invia 1 messaggio"
+                                    : `Invia ${selectedCount} messaggi`}
                                 </Button>
                               )}
                               {canDelete && (
