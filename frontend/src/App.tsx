@@ -55,6 +55,18 @@ function formatDateTime(dateStr: string | null | undefined): string {
   return `${dd}/${mm}/${yy} ${hh}:${min}:${ss}`
 }
 
+function formatDisplayPhone(phone: string | null | undefined): string {
+  if (!phone) return "-"
+  const clean = phone.trim()
+  if (clean.startsWith("+39")) {
+    return clean.slice(3).trim()
+  }
+  if (clean.startsWith("39") && clean.length > 9) {
+    return clean.slice(2).trim()
+  }
+  return clean
+}
+
 interface RigaMessaggio {
   id: number
   testo: string
@@ -758,8 +770,8 @@ export default function App() {
                                   <TableCell className="truncate text-sm text-muted-foreground" title={msg.nominativo}>
                                     {msg.nominativo}
                                   </TableCell>
-                                  <TableCell className="truncate text-sm text-muted-foreground">
-                                    {msg.cellulare}
+                                  <TableCell className="truncate text-sm text-muted-foreground" title={msg.cellulare}>
+                                    {formatDisplayPhone(msg.cellulare)}
                                   </TableCell>
                                   <TableCell className="select-text text-muted-foreground">
                                     <p className="truncate text-sm text-muted-foreground" title={msg.testo}>{msg.testo}</p>
