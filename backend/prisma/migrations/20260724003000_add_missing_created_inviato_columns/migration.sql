@@ -1,0 +1,6 @@
+-- AlterTable import_messaggi
+ALTER TABLE "import_messaggi" ADD COLUMN IF NOT EXISTS "created" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- AlterTable righe_messaggi
+ALTER TABLE "righe_messaggi" ADD COLUMN IF NOT EXISTS "created" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "righe_messaggi" ADD COLUMN IF NOT EXISTS "inviato" TIMESTAMP(3);
