@@ -45,20 +45,8 @@ model RigaMessaggio {
   @@map("righe_messaggi")
 }
 
-/// Sessione WhatsApp persistente su database.
-/// Memorizza le credenziali e le chiavi di crittografia di Baileys
-/// per evitare la ri-autenticazione via QR code al riavvio dell'app.
-model Sessione {
-  id    String @id            // chiave: "creds" oppure "pre-key-1", "session-xxx", ecc.
-  data  String @db.Text       // JSON serializzato del valore (creds, signal keys, ecc.)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt     @map("updated_at")
-
-  @@map("sessioni")
-}
-
-/// Tabella per la configurazione del sistema (es. password hashata)
+/// Tabella per la configurazione del sistema (es. password hashata e URL_LYBRO_APP)
 model Configurazione {
   chiave String @id @db.VarChar(2048)
   valore String @db.VarChar(2048)

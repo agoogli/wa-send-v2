@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type ConnectionStatus = 'disconnected' | 'connected';
 
@@ -6,6 +7,8 @@ export type ConnectionStatus = 'disconnected' | 'connected';
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
   private readonly status: ConnectionStatus = 'connected'; // Always connected for SendApp official API
+
+  constructor(private readonly prisma: PrismaService) {}
 
   onModuleInit() {
     this.logger.log('Inizializzato WhatsappService in modalità SendApp API Ufficiale');
@@ -34,7 +37,7 @@ export class WhatsappService {
    * "Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Maggiori dettagli al link > {{2}}. Cordiali saluti."
    *
    * - {{1}} = Nominativo cliente (es. "MANGIANTE ANGELO")
-   * - {{2}} = URL completo (es. "https://smslnk.it/pl/?t=qO16IHZ")
+   * - {{2}} = URL completo generato dal valore URL_LYBRO_APP + codice alfanumerico (es. "https://smslnk.it/pl/?t=qO16IHZ")
    */
   async sendMessage(
     recipient: string,
@@ -42,10 +45,11 @@ export class WhatsappService {
     nominativo?: string,
     link?: string,
   ): Promise<{ success: boolean; error?: string }> {
-    const apiToken = process.env.SENDAPP_API_TOKEN;
+    const apiToken = process.env.SENDAPP_API_TOKEN || process.env.SENDAPP_API_KEY;
     const apiUrl = process.env.SENDAPP_API_URL || 'https://official.sendapp.cloud/api';
-    const templateName = process.env.SENDAPP_TEMPLATE_NAME || 'avviso_ritiro_libri';
+    const templateName = process.env.SENDAPP_TEMPLATE_NAME || 'avviso_libri_prenotati';
     const languageCode = process.env.SENDAPP_LANGUAGE_CODE || 'it';
+    const apiEndpoint = process.env.SENDAPP_API_ENDPOINT || '/send/template';
 
     if (!apiToken || apiToken === 'YOUR_SENDAPP_API_TOKEN_HERE') {
       const errMsg = 'SENDAPP_API_TOKEN non configurato nel file .env';
@@ -57,18 +61,20 @@ export class WhatsappService {
       // 1. Parametro {{1}} = Nominativo cliente
       const param1 = (nominativo || '').trim();
 
-      // 2. Parametro {{2}} = URL completo generato concatenando il codice dalla colonna "Link" (es. "https://smslnk.it/pl/?t=qO16IHZ")
-      const rawLink = (link || '').trim();
-      const param2 = rawLink
-        ? (rawLink.startsWith('http://') || rawLink.startsWith('https://')
-            ? rawLink
-            : `https://smslnk.it/pl/?t=${rawLink}`)
-        : '';
+      // 2. Recupera l'URL base dalla tabella Configurazione (chiave URL_LYBRO_APP)
+      const configRow = await this.prisma.configurazione.findUnique({
+        where: { chiave: 'URL_LYBRO_APP' },
+      });
+      const baseUrl = configRow?.valore || 'https://smslnk.it/pl/?t=';
 
-      // 3. Pulisce il numero di telefono (solo cifre, senza +)
+      // 3. Parametro {{2}} = URL completo concatenando il codice alfanumerico
+      const rawLink = (link || '').trim();
+      const param2 = rawLink ? `${baseUrl}${rawLink}` : '';
+
+      // 4. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
 
-      // 4. Prepara il payload per il template Meta tramite SendApp con 2 parametri posizionali
+      // 5. Prepara il payload per il template Meta tramite SendApp con 2 parametri posizionali
       const payload = {
         phone: cleanPhone,
         template: {
@@ -87,7 +93,8 @@ export class WhatsappService {
         show_in_chat: true,
       };
 
-      const url = `${apiUrl.replace(/\/$/, '')}/send/template`;
+      const normalizedEndpoint = apiEndpoint.startsWith('/') ? apiEndpoint : `/${apiEndpoint}`;
+      const url = `${apiUrl.replace(/\/$/, '')}${normalizedEndpoint}`;
       this.logger.log(`Invio messaggio template a ${cleanPhone} tramite SendApp...`);
 
       const response = await fetch(url, {
@@ -95,6 +102,7 @@ export class WhatsappService {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiToken}`,
+          'X-API-Key': apiToken,
         },
         body: JSON.stringify(payload),
       });
@@ -116,3 +124,4 @@ export class WhatsappService {
     }
   }
 }
+
