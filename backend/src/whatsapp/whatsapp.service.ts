@@ -52,6 +52,13 @@ export class WhatsappService {
       return { success: false, error: errMsg };
     }
 
+    const accountToken = process.env.SENDAPP_ACCOUNT_TOKEN;
+    if (!accountToken) {
+      const errMsg = 'Valore SENDAPP_ACCOUNT_TOKEN mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
     const apiUrl = process.env.SENDAPP_API_URL;
     if (!apiUrl) {
       const errMsg = 'Valore SENDAPP_API_URL mancante nel file .env';
@@ -119,15 +126,20 @@ export class WhatsappService {
         .replace('{{1}}', param1)
         .replace('{{2}}', param2);
 
-      // 4. Pulisce il numero di telefono (solo cifre, senza +)
+      // 5. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
 
-      // 5. Prepara il payload per il template Meta tramite SendApp con 2 parametri posizionali
+      // 6. Prepara il payload per l'endpoint SendApp Meta Template
       const payload = {
-        phone: cleanPhone,
+        apikey: apiKey,
+        token: accountToken,
+        number: cleanPhone,
+        type: 'template',
         template: {
           name: templateName,
-          language: languageCode,
+          language: {
+            code: languageCode,
+          },
           components: [
             {
               type: 'body',
@@ -138,32 +150,29 @@ export class WhatsappService {
             },
           ],
         },
-        show_in_chat: true,
       };
 
       const normalizedEndpoint = apiEndpoint.startsWith('/') ? apiEndpoint : `/${apiEndpoint}`;
       const url = `${apiUrl.replace(/\/$/, '')}${normalizedEndpoint}`;
-      this.logger.log(`Invio messaggio template a ${cleanPhone} tramite SendApp...`);
+      this.logger.log(`Invio messaggio template a ${cleanPhone} tramite SendApp Meta API...`);
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'X-API-Key': apiKey,
         },
         body: JSON.stringify(payload),
       });
 
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
+      if (!response.ok || data.status === 'error') {
         const errorMsg = data.message || `Errore HTTP ${response.status}`;
         this.logger.error(`Invio a ${cleanPhone} fallito: ${errorMsg}`);
         return { success: false, error: errorMsg };
       }
 
-      this.logger.log(`Messaggio template inviato con successo a ${cleanPhone}`);
+      this.logger.log(`Messaggio template inviato con successo a ${cleanPhone} (ID: ${data.message_id || 'N/A'})`);
       return { success: true, fullText };
     } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : 'Errore sconosciuto';
