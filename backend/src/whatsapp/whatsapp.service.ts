@@ -1,31 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import makeWASocket, {
-  DisconnectReason,
-  WASocket,
-  AuthenticationState,
-  SignalDataTypeMap,
-  initAuthCreds,
-  proto,
-  BufferJSON,
-  fetchLatestBaileysVersion,
-} from '@whiskeysockets/baileys';
-import * as QRCode from 'qrcode';
-import { Boom } from '@hapi/boom';
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+export type ConnectionStatus = 'disconnected' | 'connected';
 
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
-  private socket: WASocket | null = null;
-  private qrDataUrl: string | null = null;
-  private status: ConnectionStatus = 'disconnected';
+  private readonly status: ConnectionStatus = 'connected'; // Always connected for SendApp official API
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async onModuleInit() {
-    await this.connect();
+  onModuleInit() {
+    this.logger.log('Inizializzato WhatsappService in modalità SendApp API Ufficiale');
   }
 
   getStatus(): ConnectionStatus {
@@ -33,191 +19,166 @@ export class WhatsappService {
   }
 
   getQrCode(): string | null {
-    return this.qrDataUrl;
-  }
-
-  /**
-   * Crea un AuthenticationState che legge/scrive le credenziali
-   * e le chiavi Signal direttamente sulla tabella `sessioni` del DB.
-   */
-  private async useDbAuthState(): Promise<{
-    state: AuthenticationState;
-    saveCreds: () => Promise<void>;
-  }> {
-    // Leggi creds dal DB oppure inizializza nuove credenziali
-    const credsRow = await this.prisma.sessione.findUnique({
-      where: { id: 'creds' },
-    });
-
-    const creds = credsRow
-      ? JSON.parse(credsRow.data, BufferJSON.reviver)
-      : initAuthCreds();
-
-    const saveCreds = async () => {
-      await this.prisma.sessione.upsert({
-        where: { id: 'creds' },
-        update: { data: JSON.stringify(creds, BufferJSON.replacer) },
-        create: {
-          id: 'creds',
-          data: JSON.stringify(creds, BufferJSON.replacer),
-        },
-      });
-    };
-
-    const keys = {
-      get: async <T extends keyof SignalDataTypeMap>(
-        type: T,
-        ids: string[],
-      ): Promise<{ [id: string]: SignalDataTypeMap[T] }> => {
-        const result: { [id: string]: SignalDataTypeMap[T] } = {};
-        for (const id of ids) {
-          const row = await this.prisma.sessione.findUnique({
-            where: { id: `${type}-${id}` },
-          });
-          if (row) {
-            let parsed = JSON.parse(row.data, BufferJSON.reviver);
-            if (type === 'app-state-sync-key' && parsed) {
-              parsed =
-                proto.Message.AppStateSyncKeyData.fromObject(parsed);
-            }
-            result[id] = parsed;
-          }
-        }
-        return result;
-      },
-      set: async (data: Record<string, Record<string, unknown>>) => {
-        for (const category in data) {
-          for (const id in data[category]) {
-            const value = data[category][id];
-            const dbKey = `${category}-${id}`;
-            if (value) {
-              await this.prisma.sessione.upsert({
-                where: { id: dbKey },
-                update: {
-                  data: JSON.stringify(value, BufferJSON.replacer),
-                },
-                create: {
-                  id: dbKey,
-                  data: JSON.stringify(value, BufferJSON.replacer),
-                },
-              });
-            } else {
-              await this.prisma.sessione
-                .delete({ where: { id: dbKey } })
-                .catch(() => {
-                  // chiave non esistente, ignora
-                });
-            }
-          }
-        }
-      },
-    };
-
-    return {
-      state: { creds, keys },
-      saveCreds,
-    };
+    return null; // QR Code no longer needed for official API
   }
 
   async connect(): Promise<void> {
-    if (this.status === 'connecting' || this.status === 'connected') {
-      return;
-    }
-
-    this.status = 'connecting';
-    const { state, saveCreds } = await this.useDbAuthState();
-
-    // Fetch the latest WhatsApp Web version to prevent connection failure loop
-    let version: [number, number, number] = [2, 3000, 1017013821];
-    try {
-      const latest = await fetchLatestBaileysVersion();
-      version = latest.version;
-      this.logger.log(`Using WA Web version v${version.join('.')}`);
-    } catch (err: any) {
-      this.logger.warn(`Failed to fetch latest WA version, using default: ${err.message}`);
-    }
-
-    this.socket = makeWASocket({
-      version,
-      auth: state,
-    });
-
-    this.socket.ev.on('creds.update', saveCreds);
-
-    this.socket.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-
-      if (qr) {
-        this.qrDataUrl = await QRCode.toDataURL(qr);
-        this.status = 'connecting';
-        this.logger.log('QR code generato — scansiona col telefono');
-      }
-
-      if (connection === 'close') {
-        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-        this.logger.warn(
-          `Connessione chiusa (status: ${statusCode}). Riconnessione: ${!isLoggedOut}`,
-        );
-        this.status = 'disconnected';
-        this.qrDataUrl = null;
-        this.socket = null;
-
-        if (isLoggedOut) {
-          this.logger.log(
-            'Credenziali sessione non più valide o disconnesse (401). Pulizia delle sessioni nel DB...',
-          );
-          try {
-            await this.prisma.sessione.deleteMany({});
-            this.logger.log('Tabella sessioni svuotata con successo.');
-          } catch (err: any) {
-            this.logger.error(`Errore svuotamento sessioni: ${err.message}`);
-          }
-          // Forza la riconnessione dopo la pulizia del DB per generare un nuovo QR code
-          this.logger.log('Avvio nuova connessione per generare il codice QR...');
-          setTimeout(() => this.connect(), 2000);
-        } else {
-          setTimeout(() => this.connect(), 3000);
-        }
-      }
-
-      if (connection === 'open') {
-        this.logger.log('✅ WhatsApp connesso!');
-        this.status = 'connected';
-        this.qrDataUrl = null;
-      }
-    });
-  }
-
-  async sendMessage(
-    recipient: string,
-    content: string,
-  ): Promise<{ success: boolean; error?: string }> {
-    if (!this.socket || this.status !== 'connected') {
-      return { success: false, error: 'WhatsApp non connesso' };
-    }
-
-    try {
-      const jid = recipient.includes('@')
-        ? recipient
-        : `${recipient.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-
-      await this.socket.sendMessage(jid, { text: content });
-      return { success: true };
-    } catch (error: any) {
-      const message =
-        error instanceof Error ? error.message : 'Errore sconosciuto';
-      this.logger.error(`Invio fallito a ${recipient}: ${message}`);
-      return { success: false, error: message };
-    }
+    this.logger.log('Tentativo di connessione (SendApp API è sempre pronta)');
   }
 
   async disconnect(): Promise<void> {
-    if (this.socket) {
-      await this.socket.logout();
-      this.socket = null;
-      this.status = 'disconnected';
-      this.qrDataUrl = null;
+    this.logger.log('Disconnessione (No-op per SendApp API)');
+  }
+
+  /**
+   * Invia un messaggio tramite le API di SendApp utilizzando i template ufficiali di Meta.
+   *
+   * Formato del Template raccomandato per Meta:
+   * "Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Maggiori dettagli al link > {{2}}. Cordiali saluti."
+   *
+   * - {{1}} = Nominativo cliente (es. "MANGIANTE ANGELO")
+   * - {{2}} = URL completo generato dal valore URL_LYBRO_APP + codice alfanumerico (es. "https://smslnk.it/pl/?t=qO16IHZ")
+   */
+  async sendMessage(
+    recipient: string,
+    content: string,
+    nominativo?: string,
+    link?: string,
+  ): Promise<{ success: boolean; error?: string; fullText?: string }> {
+    const apiKey = process.env.SENDAPP_API_KEY;
+    if (!apiKey) {
+      const errMsg = 'Valore SENDAPP_API_KEY mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const accountToken = process.env.SENDAPP_ACCOUNT_TOKEN;
+    if (!accountToken) {
+      const errMsg = 'Valore SENDAPP_ACCOUNT_TOKEN mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const apiUrl = process.env.SENDAPP_API_URL;
+    if (!apiUrl) {
+      const errMsg = 'Valore SENDAPP_API_URL mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const templateName = process.env.SENDAPP_TEMPLATE_NAME;
+    if (!templateName) {
+      const errMsg = 'Valore SENDAPP_TEMPLATE_NAME mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const languageCode = process.env.SENDAPP_LANGUAGE_CODE;
+    if (!languageCode) {
+      const errMsg = 'Valore SENDAPP_LANGUAGE_CODE mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const apiEndpoint = process.env.SENDAPP_API_ENDPOINT;
+    if (!apiEndpoint) {
+      const errMsg = 'Valore SENDAPP_API_ENDPOINT mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    try {
+      // 1. Parametro {{1}} = Nominativo cliente
+      const param1 = (nominativo || '').trim();
+
+      // 2. Recupera l'URL base dalla tabella Configurazione (chiave URL_LYBRO_APP)
+      const configUrlRow = await this.prisma.configurazione.findUnique({
+        where: { chiave: 'URL_LYBRO_APP' },
+      });
+
+      if (!configUrlRow || !configUrlRow.valore) {
+        const errMsg = "Valore 'URL_LYBRO_APP' mancante nella tabella configurazioni";
+        this.logger.error(errMsg);
+        return { success: false, error: errMsg };
+      }
+
+      const baseUrl = configUrlRow.valore;
+
+      // 3. Recupera il pattern del template dalla tabella Configurazione (chiave TEMPLATE_AVVISO_LIBRI_PRENOTATI)
+      const configTplRow = await this.prisma.configurazione.findUnique({
+        where: { chiave: 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' },
+      });
+
+      if (!configTplRow || !configTplRow.valore) {
+        const errMsg = "Valore 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' mancante nella tabella configurazioni";
+        this.logger.error(errMsg);
+        return { success: false, error: errMsg };
+      }
+
+      const templatePattern = configTplRow.valore;
+
+      // 4. Parametro {{2}} = URL completo concatenando il codice alfanumerico
+      const rawLink = (link || '').trim();
+      const param2 = rawLink ? `${baseUrl}${rawLink}` : '';
+
+      // Testo reale completo del messaggio recapitato
+      const fullText = templatePattern
+        .replace('{{1}}', param1)
+        .replace('{{2}}', param2);
+
+      // 5. Pulisce il numero di telefono (solo cifre, senza +)
+      const cleanPhone = recipient.replace(/[^\d]/g, '');
+
+      // 6. Prepara il payload per l'endpoint SendApp Meta Template
+      const payload = {
+        apikey: apiKey,
+        token: accountToken,
+        number: cleanPhone,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: {
+            code: languageCode,
+          },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: param1 },
+                { type: 'text', text: param2 },
+              ],
+            },
+          ],
+        },
+      };
+
+      const normalizedEndpoint = apiEndpoint.startsWith('/') ? apiEndpoint : `/${apiEndpoint}`;
+      const url = `${apiUrl.replace(/\/$/, '')}${normalizedEndpoint}`;
+      this.logger.log(`Invio messaggio template a ${cleanPhone} tramite SendApp Meta API...`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.status === 'error') {
+        const errorMsg = data.message || `Errore HTTP ${response.status}`;
+        this.logger.error(`Invio a ${cleanPhone} fallito: ${errorMsg}`);
+        return { success: false, error: errorMsg };
+      }
+
+      this.logger.log(`Messaggio template inviato con successo a ${cleanPhone} (ID: ${data.message_id || 'N/A'})`);
+      return { success: true, fullText };
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : 'Errore sconosciuto';
+      this.logger.error(`Invio fallito a ${recipient}: ${errorMsg}`);
+      return { success: false, error: errorMsg };
     }
   }
 }
+

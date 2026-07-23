@@ -165,15 +165,44 @@ Al riavvio, il nuovo container PostgreSQL monterà lo stesso volume e caricherà
 
 Nel backend/Dockerfile abbiamo impostato il comando di avvio per eseguire automaticamente la sincronizzazione di Prisma:
 
-```
-npx prisma db push --schema=./backend/prisma/schema.prisma
-```
-
-Quando il backend viene aggiornato e si avvia:
-
-Prisma confronta lo schema del nuovo codice con le tabelle esistenti nel database.
-Applica in modo incrementale le modifiche (ad esempio aggiunge le colonne created o inviato che mancano).
 Prisma non cancella mai i dati esistenti durante questa procedura (a meno che tu non abbia esplicitamente eliminato una tabella o una colonna dallo schema, operazione per la quale Prisma ti avviserebbe comunque bloccando il comando se c'è rischio di perdita dati).
+
+Come applicare la Migration
+A) In ambiente locale / Development:
+In sviluppo, quando il container o il servizio PostgreSQL è in esecuzione sulla porta 5432 locale, ti basta eseguire dal terminale nella cartella principale del monorepo:
+
+bash
+
+
+npm run prisma:push -w backend
+oppure:
+
+bash
+
+
+npx prisma migrate dev -w backend
+Questo comando sincronizza lo schema rimuovendo la tabella sessioni ed inserendo le righe iniziali in configurazioni.
+
+B) In ambiente di Produzione:
+In produzione ci sono tre modalità standard a seconda di come gestisci il deploy:
+
+Tramite Podman / Docker Compose (Automatizzato - Consigliato): Nel tuo file Dockerfile del backend o nel comando di startup di podman-compose.yml, è possibile configurare il comando di boot:
+
+bash
+
+
+npx prisma migrate deploy -w backend
+Quando lanci podman-compose up -d, Prisma verificherà le migration pendenti nella cartella prisma/migrations/ ed applicherà automaticamente la nuova migration al database PostgreSQL di produzione.
+
+Manualmente tramite CLI sul server di produzione: Dalla directory di deploy sul server di produzione:
+
+bash
+
+
+npx prisma migrate deploy -w backend
+Esecuzione diretta dello script SQL tramite psql / Client Database: Se gestisci il database di produzione tramite psql o un client grafico (DBeaver, PgAdmin), puoi eseguire direttamente l'istruzione SQL del file 
+migration.sql
+ riportato sopra.
 
 
 ## 💡 Consiglio di Sicurezza (Best Practice)

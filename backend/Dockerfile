@@ -46,4 +46,4 @@ EXPOSE 3000
 ENV NODE_ENV=production
 
 # Command to sync/migrate the database on startup and run NestJS
-CMD ["sh", "-c", "npx prisma db push --schema=./backend/prisma/schema.prisma && node backend/dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=./backend/prisma/schema.prisma && node backend/dist/main"]

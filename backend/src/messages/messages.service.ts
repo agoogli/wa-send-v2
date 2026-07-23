@@ -17,7 +17,7 @@ export interface ParsedMessage {
 @Injectable()
 export class MessagesService implements OnModuleInit {
   private readonly logger = new Logger(MessagesService.name);
-  private queue: { id: number; cellulare: string; testo: string }[] = [];
+  private queue: { id: number; cellulare: string; testo: string; nominativo?: string; link?: string }[] = [];
   private isProcessing = false;
 
   constructor(
@@ -128,10 +128,26 @@ export class MessagesService implements OnModuleInit {
   async uploadAndParse(html: string) {
     const parsed = this.parseHtml(html);
 
+    // Recupera l'URL base e il pattern del template da Configurazione per formattare il testo iniziale nel DB
+    const configUrlRow = await this.prisma.configurazione.findUnique({
+      where: { chiave: 'URL_LYBRO_APP' },
+    });
+    const baseUrl = configUrlRow?.valore || '';
+
+    const configTplRow = await this.prisma.configurazione.findUnique({
+      where: { chiave: 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' },
+    });
+    const templatePattern = configTplRow?.valore || 'Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Maggiori dettagli al link > {{2}}. Cordiali saluti.';
+
     const righeData = parsed.map((m) => {
       const val = this.validateMessage(m);
+      const fullUrl = m.link && baseUrl ? `${baseUrl}${m.link.trim()}` : m.link;
+      const formattedTesto = m.nominativo
+        ? templatePattern.replace('{{1}}', m.nominativo).replace('{{2}}', fullUrl)
+        : m.testo;
+
       return {
-        testo: m.testo,
+        testo: formattedTesto,
         nominativo: m.nominativo,
         cellulare: val.cleanedCellulare || m.cellulare,
         link: m.link,
@@ -245,6 +261,8 @@ export class MessagesService implements OnModuleInit {
       id: m.id,
       cellulare: m.cellulare,
       testo: m.testo,
+      nominativo: m.nominativo,
+      link: m.link,
     }));
     this.queue.push(...jobs);
 
@@ -263,9 +281,11 @@ export class MessagesService implements OnModuleInit {
         const job = this.queue.shift();
         if (!job) continue;
 
-        // Pause between 8s and 13s
-        const delayMs = Math.floor(Math.random() * (13500 - 8500 + 1)) + 8500;
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        // Pausa minima configurabile per l'invio via API ufficiale (default 100ms)
+        const delayMs = parseInt(process.env.SEND_DELAY_MS || '100', 10);
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
 
         // Check if message still exists and is PENDING in DB
         const msg = await this.prisma.rigaMessaggio.findUnique({
@@ -276,7 +296,12 @@ export class MessagesService implements OnModuleInit {
           continue;
         }
 
-        const result = await this.whatsapp.sendMessage(job.cellulare, job.testo);
+        const result = await this.whatsapp.sendMessage(
+          job.cellulare,
+          job.testo,
+          job.nominativo,
+          job.link,
+        );
 
         const newStato = result.success
           ? StatoMessaggio.INVIATO
@@ -286,8 +311,9 @@ export class MessagesService implements OnModuleInit {
           where: { id: job.id },
           data: {
             stato: newStato,
+            testo: result.fullText || msg.testo,
             errore: result.error || null,
-            inviato: result.success ? new Date() : null,
+            inviato: new Date(),
           },
         });
 

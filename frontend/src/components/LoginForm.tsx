@@ -58,7 +58,10 @@ export function LoginForm({ apiBase, onLoginSuccess }: LoginFormProps) {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <MessageSquare className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
+              <span className="text-xs text-muted-foreground font-medium">v{packageJson.version}</span>
+            </div>
           </div>
         </div>
       </header>
