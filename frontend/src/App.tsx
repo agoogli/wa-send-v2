@@ -4,8 +4,6 @@ import {
   Upload,
   Send,
   FileText,
-  Wifi,
-  WifiOff,
   Loader2,
   MessageSquare,
   CheckCircle2,
@@ -77,43 +75,7 @@ interface ImportMessaggio {
   righe: RigaMessaggio[]
 }
 
-interface WhatsAppStatus {
-  status: "disconnected" | "connecting" | "connected"
-  qrCode: string | null
-}
 
-function StatusIndicator({ status }: { status: WhatsAppStatus["status"] }) {
-  const config = {
-    connected: {
-      icon: Wifi,
-      label: "Connesso",
-      className: "text-success",
-      dot: "bg-success animate-pulse",
-    },
-    connecting: {
-      icon: Loader2,
-      label: "Connessione...",
-      className: "text-warning",
-      dot: "bg-warning animate-pulse",
-    },
-    disconnected: {
-      icon: WifiOff,
-      label: "Disconnesso",
-      className: "text-danger",
-      dot: "bg-danger",
-    },
-  }
-  const c = config[status]
-  const Icon = c.icon
-
-  return (
-    <div className={`flex items-center gap-2 ${c.className}`}>
-      <span className={`h-2.5 w-2.5 rounded-full ${c.dot}`} />
-      <Icon className={`h-4 w-4 ${status === "connecting" ? "animate-spin" : ""}`} />
-      <span className="text-sm font-medium">{c.label}</span>
-    </div>
-  )
-}
 
 function StatusBadge({ stato }: { stato: string }) {
   const config: Record<string, { variant: "warning" | "success" | "danger" | "secondary"; icon: typeof Clock; label: string }> = {
@@ -155,10 +117,7 @@ export default function App() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null)
-  const [waStatus, setWaStatus] = useState<WhatsAppStatus>({
-    status: "disconnected",
-    qrCode: null,
-  })
+
   const [selectedMessageIds, setSelectedMessageIds] = useState<Record<number, boolean>>({})
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -224,25 +183,7 @@ export default function App() {
     checkAuth()
   }, [])
 
-  // Poll WhatsApp status
-  useEffect(() => {
-    if (!isAuthenticated) return
-    const poll = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/whatsapp/status`)
-        if (res.ok) {
-          setWaStatus(await res.json())
-        } else if (res.status === 401) {
-          setIsAuthenticated(false)
-        }
-      } catch {
-        // Backend non disponibile
-      }
-    }
-    poll()
-    const interval = setInterval(poll, 3000)
-    return () => clearInterval(interval)
-  }, [isAuthenticated])
+
 
   // Fetch imports al mount
   useEffect(() => {
@@ -416,108 +357,7 @@ export default function App() {
     )
   }
 
-  if (waStatus.status !== "connected") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        {/* Header */}
-        <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-          <div className="w-full md:w-[80%] md:max-w-[80%] mx-auto flex h-16 items-center justify-between px-4 md:px-0">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                <MessageSquare className="h-5 w-5 text-primary" />
-              </div>
-              <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <StatusIndicator status={waStatus.status} />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await fetch(`${API_BASE}/auth/logout`, { method: "POST" })
-                    setIsAuthenticated(false)
-                  } catch (err) {
-                    console.error("Errore logout:", err)
-                  }
-                }}
-                className="gap-2 text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Esci</span>
-              </Button>
-            </div>
-          </div>
-        </header>
 
-        <main className="flex-1 flex items-center justify-center px-6 py-12">
-          <Card className="max-w-md w-full border-border/40 bg-card shadow-lg relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-100" />
-            <CardHeader className="text-center relative z-10">
-              <CardTitle className="text-xl font-bold flex items-center justify-center gap-2">
-                {waStatus.status === "connecting" && !waStatus.qrCode ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin text-primary animate-pulse" />
-                    Inizializzazione sessione...
-                  </>
-                ) : (
-                  <>
-                    <WifiOff className="h-5 w-5 text-danger" />
-                    Connessione a WhatsApp
-                  </>
-                )}
-              </CardTitle>
-              <CardDescription className="mt-2 text-sm text-muted-foreground">
-                {waStatus.status === "connecting" && !waStatus.qrCode
-                  ? "Connessione in corso al server Baileys WhatsApp. Generazione del QR Code..."
-                  : "Per inviare i messaggi da questa applicazione, devi prima scansionare il codice QR con il tuo telefono."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center pb-8 relative z-10">
-              {waStatus.qrCode ? (
-                <div className="space-y-6 flex flex-col items-center w-full">
-                  <div className="relative p-3 bg-white rounded-2xl border border-border/60 shadow-inner group-hover:scale-[1.02] transition-transform duration-300">
-                    <img
-                      src={waStatus.qrCode}
-                      alt="WhatsApp QR Code"
-                      className="h-64 w-64 rounded-xl"
-                    />
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-2 max-w-xs text-left list-decimal pl-4">
-                    <p>1. Apri <strong>WhatsApp</strong> sul telefono.</p>
-                    <p>2. Menu (tre puntini) o Impostazioni - <strong>Dispositivi collegati</strong>.</p>
-                    <p>3. Tocca su <strong>Collega un dispositivo</strong>.</p>
-                    <p>4. Inquadra lo schermo per catturare il codice QR.</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center py-12 text-muted-foreground space-y-4">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                  <p className="text-sm font-medium animate-pulse">Generazione del codice QR in corso...</p>
-                  {waStatus.status === "disconnected" && (
-                    <Button
-                      onClick={async () => {
-                        try {
-                          await fetch(`${API_BASE}/whatsapp/connect`, { method: "POST" })
-                        } catch (err) {
-                          console.error("Errore durante la connessione:", err)
-                        }
-                      }}
-                      variant="outline"
-                      className="mt-4 gap-2"
-                    >
-                      <Wifi className="h-4 w-4" />
-                      Avvia Connessione
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -531,7 +371,6 @@ export default function App() {
             <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
           </div>
           <div className="flex items-center gap-4">
-            <StatusIndicator status={waStatus.status} />
             <Button
               variant="ghost"
               size="sm"
@@ -822,7 +661,7 @@ export default function App() {
                                     setConfirmSendId(imp.id)
                                     setConfirmDeleteId(null)
                                   }}
-                                  disabled={sending || waStatus.status !== "connected" || selectedCount === 0}
+                                  disabled={sending || selectedCount === 0}
                                   className="gap-2 h-9"
                                 >
                                   {sending ? (

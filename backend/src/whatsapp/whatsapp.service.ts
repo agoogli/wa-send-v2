@@ -85,24 +85,39 @@ export class WhatsappService {
       const param1 = (nominativo || '').trim();
 
       // 2. Recupera l'URL base dalla tabella Configurazione (chiave URL_LYBRO_APP)
-      const configRow = await this.prisma.configurazione.findUnique({
+      const configUrlRow = await this.prisma.configurazione.findUnique({
         where: { chiave: 'URL_LYBRO_APP' },
       });
 
-      if (!configRow || !configRow.valore) {
+      if (!configUrlRow || !configUrlRow.valore) {
         const errMsg = "Valore 'URL_LYBRO_APP' mancante nella tabella configurazioni";
         this.logger.error(errMsg);
         return { success: false, error: errMsg };
       }
 
-      const baseUrl = configRow.valore;
+      const baseUrl = configUrlRow.valore;
 
-      // 3. Parametro {{2}} = URL completo concatenando il codice alfanumerico
+      // 3. Recupera il pattern del template dalla tabella Configurazione (chiave TEMPLATE_AVVISO_LIBRI_PRENOTATI)
+      const configTplRow = await this.prisma.configurazione.findUnique({
+        where: { chiave: 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' },
+      });
+
+      if (!configTplRow || !configTplRow.valore) {
+        const errMsg = "Valore 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' mancante nella tabella configurazioni";
+        this.logger.error(errMsg);
+        return { success: false, error: errMsg };
+      }
+
+      const templatePattern = configTplRow.valore;
+
+      // 4. Parametro {{2}} = URL completo concatenando il codice alfanumerico
       const rawLink = (link || '').trim();
       const param2 = rawLink ? `${baseUrl}${rawLink}` : '';
 
       // Testo reale completo del messaggio recapitato
-      const fullText = `Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per ${param1}. Maggiori dettagli al link > ${param2}. Cordiali saluti.`;
+      const fullText = templatePattern
+        .replace('{{1}}', param1)
+        .replace('{{2}}', param2);
 
       // 4. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');

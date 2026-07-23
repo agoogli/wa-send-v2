@@ -128,17 +128,22 @@ export class MessagesService implements OnModuleInit {
   async uploadAndParse(html: string) {
     const parsed = this.parseHtml(html);
 
-    // Recupera l'URL base da Configurazione per formattare il testo iniziale nel DB
-    const configRow = await this.prisma.configurazione.findUnique({
+    // Recupera l'URL base e il pattern del template da Configurazione per formattare il testo iniziale nel DB
+    const configUrlRow = await this.prisma.configurazione.findUnique({
       where: { chiave: 'URL_LYBRO_APP' },
     });
-    const baseUrl = configRow?.valore || '';
+    const baseUrl = configUrlRow?.valore || '';
+
+    const configTplRow = await this.prisma.configurazione.findUnique({
+      where: { chiave: 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' },
+    });
+    const templatePattern = configTplRow?.valore || 'Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Maggiori dettagli al link > {{2}}. Cordiali saluti.';
 
     const righeData = parsed.map((m) => {
       const val = this.validateMessage(m);
       const fullUrl = m.link && baseUrl ? `${baseUrl}${m.link.trim()}` : m.link;
       const formattedTesto = m.nominativo
-        ? `Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per ${m.nominativo}. Maggiori dettagli al link > ${fullUrl}. Cordiali saluti.`
+        ? templatePattern.replace('{{1}}', m.nominativo).replace('{{2}}', fullUrl)
         : m.testo;
 
       return {
