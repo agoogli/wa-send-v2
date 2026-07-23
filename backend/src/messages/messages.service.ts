@@ -128,10 +128,21 @@ export class MessagesService implements OnModuleInit {
   async uploadAndParse(html: string) {
     const parsed = this.parseHtml(html);
 
+    // Recupera l'URL base da Configurazione per formattare il testo iniziale nel DB
+    const configRow = await this.prisma.configurazione.findUnique({
+      where: { chiave: 'URL_LYBRO_APP' },
+    });
+    const baseUrl = configRow?.valore || '';
+
     const righeData = parsed.map((m) => {
       const val = this.validateMessage(m);
+      const fullUrl = m.link && baseUrl ? `${baseUrl}${m.link.trim()}` : m.link;
+      const formattedTesto = m.nominativo
+        ? `Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per ${m.nominativo}. Maggiori dettagli al link > ${fullUrl}. Cordiali saluti.`
+        : m.testo;
+
       return {
-        testo: m.testo,
+        testo: formattedTesto,
         nominativo: m.nominativo,
         cellulare: val.cleanedCellulare || m.cellulare,
         link: m.link,
@@ -265,9 +276,11 @@ export class MessagesService implements OnModuleInit {
         const job = this.queue.shift();
         if (!job) continue;
 
-        // Pause between 8s and 13s
-        const delayMs = Math.floor(Math.random() * (13500 - 8500 + 1)) + 8500;
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        // Pausa minima configurabile per l'invio via API ufficiale (default 100ms)
+        const delayMs = parseInt(process.env.SEND_DELAY_MS || '100', 10);
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
 
         // Check if message still exists and is PENDING in DB
         const msg = await this.prisma.rigaMessaggio.findUnique({
@@ -293,6 +306,7 @@ export class MessagesService implements OnModuleInit {
           where: { id: job.id },
           data: {
             stato: newStato,
+            testo: result.fullText || msg.testo,
             errore: result.error || null,
           },
         });

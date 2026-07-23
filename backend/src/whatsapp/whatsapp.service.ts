@@ -44,15 +44,38 @@ export class WhatsappService {
     content: string,
     nominativo?: string,
     link?: string,
-  ): Promise<{ success: boolean; error?: string }> {
-    const apiToken = process.env.SENDAPP_API_TOKEN || process.env.SENDAPP_API_KEY;
-    const apiUrl = process.env.SENDAPP_API_URL || 'https://official.sendapp.cloud/api';
-    const templateName = process.env.SENDAPP_TEMPLATE_NAME || 'avviso_libri_prenotati';
-    const languageCode = process.env.SENDAPP_LANGUAGE_CODE || 'it';
-    const apiEndpoint = process.env.SENDAPP_API_ENDPOINT || '/send/template';
+  ): Promise<{ success: boolean; error?: string; fullText?: string }> {
+    const apiKey = process.env.SENDAPP_API_KEY;
+    if (!apiKey) {
+      const errMsg = 'Valore SENDAPP_API_KEY mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
 
-    if (!apiToken || apiToken === 'YOUR_SENDAPP_API_TOKEN_HERE') {
-      const errMsg = 'SENDAPP_API_TOKEN non configurato nel file .env';
+    const apiUrl = process.env.SENDAPP_API_URL;
+    if (!apiUrl) {
+      const errMsg = 'Valore SENDAPP_API_URL mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const templateName = process.env.SENDAPP_TEMPLATE_NAME;
+    if (!templateName) {
+      const errMsg = 'Valore SENDAPP_TEMPLATE_NAME mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const languageCode = process.env.SENDAPP_LANGUAGE_CODE;
+    if (!languageCode) {
+      const errMsg = 'Valore SENDAPP_LANGUAGE_CODE mancante nel file .env';
+      this.logger.error(errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const apiEndpoint = process.env.SENDAPP_API_ENDPOINT;
+    if (!apiEndpoint) {
+      const errMsg = 'Valore SENDAPP_API_ENDPOINT mancante nel file .env';
       this.logger.error(errMsg);
       return { success: false, error: errMsg };
     }
@@ -65,11 +88,21 @@ export class WhatsappService {
       const configRow = await this.prisma.configurazione.findUnique({
         where: { chiave: 'URL_LYBRO_APP' },
       });
-      const baseUrl = configRow?.valore || 'https://smslnk.it/pl/?t=';
+
+      if (!configRow || !configRow.valore) {
+        const errMsg = "Valore 'URL_LYBRO_APP' mancante nella tabella configurazioni";
+        this.logger.error(errMsg);
+        return { success: false, error: errMsg };
+      }
+
+      const baseUrl = configRow.valore;
 
       // 3. Parametro {{2}} = URL completo concatenando il codice alfanumerico
       const rawLink = (link || '').trim();
       const param2 = rawLink ? `${baseUrl}${rawLink}` : '';
+
+      // Testo reale completo del messaggio recapitato
+      const fullText = `Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per ${param1}. Maggiori dettagli al link > ${param2}. Cordiali saluti.`;
 
       // 4. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
@@ -101,8 +134,8 @@ export class WhatsappService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiToken}`,
-          'X-API-Key': apiToken,
+          'Authorization': `Bearer ${apiKey}`,
+          'X-API-Key': apiKey,
         },
         body: JSON.stringify(payload),
       });
@@ -116,7 +149,7 @@ export class WhatsappService {
       }
 
       this.logger.log(`Messaggio template inviato con successo a ${cleanPhone}`);
-      return { success: true };
+      return { success: true, fullText };
     } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : 'Errore sconosciuto';
       this.logger.error(`Invio fallito a ${recipient}: ${errorMsg}`);
