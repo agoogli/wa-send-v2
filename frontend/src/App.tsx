@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { LoginForm } from "@/components/LoginForm"
+import packageJson from "../package.json"
 
 const API_BASE = "/api"
 
@@ -104,8 +105,8 @@ function StatusBadge({ stato }: { stato: string }) {
   const Icon = c.icon
 
   return (
-    <Badge variant={c.variant} className="gap-1">
-      <Icon className="h-3 w-3" />
+    <Badge variant={c.variant} className="gap-1.5 text-sm py-1 px-2.5 font-medium">
+      <Icon className="h-3.5 w-3.5" />
       {c.label}
     </Badge>
   )
@@ -368,7 +369,10 @@ export default function App() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <MessageSquare className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-lg font-bold tracking-tight">WA Send</h1>
+              <span className="text-xs text-muted-foreground font-medium">v{packageJson.version}</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <Button
@@ -495,7 +499,7 @@ export default function App() {
         {/* Lista Importazioni Espandibili */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight">Cronologia Invii (Ultimi 10)</h2>
+            <h2 className="text-lg font-bold tracking-tight">Cronologia importazioni</h2>
             <span className="text-xs text-muted-foreground">
               Seleziona un import per visualizzarne i dettagli e le statistiche
             </span>
@@ -714,11 +718,11 @@ export default function App() {
                               </TableHead>
                               <TableHead className="w-[50px] text-center">#</TableHead>
                               <TableHead className="w-[90px]">Codice</TableHead>
-                              <TableHead className="w-[200px]">Nominativo</TableHead>
-                              <TableHead className="w-[130px]">Cellulare</TableHead>
+                              <TableHead className="w-[190px]">Nominativo</TableHead>
+                              <TableHead className="w-[165px]">Cellulare</TableHead>
                               <TableHead className="w-auto">Testo</TableHead>
-                              <TableHead className="w-[160px]">Data Invio</TableHead>
-                              <TableHead className="w-[160px] text-center">Stato</TableHead>
+                              <TableHead className="w-[155px]">Data Invio</TableHead>
+                              <TableHead className="w-[145px] text-center">Stato</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -739,16 +743,16 @@ export default function App() {
                                       />
                                     ) : null}
                                   </TableCell>
-                                  <TableCell className="font-mono text-xs text-muted-foreground text-center">
+                                  <TableCell className="text-sm text-muted-foreground text-center">
                                     {msg.id}
                                   </TableCell>
-                                  <TableCell className="text-xs text-muted-foreground truncate" title={msg.codice}>
+                                  <TableCell className="truncate text-sm text-muted-foreground" title={msg.codice}>
                                     {msg.codice || "-"}
                                   </TableCell>
-                                  <TableCell className="font-medium truncate text-sm text-muted-foreground" title={msg.nominativo}>
+                                  <TableCell className="truncate text-sm text-muted-foreground" title={msg.nominativo}>
                                     {msg.nominativo}
                                   </TableCell>
-                                  <TableCell className="font-mono text-xs text-muted-foreground">
+                                  <TableCell className="truncate text-sm text-muted-foreground">
                                     {msg.cellulare}
                                   </TableCell>
                                   <TableCell className="select-text text-muted-foreground">
@@ -759,7 +763,7 @@ export default function App() {
                                       </p>
                                     )}
                                   </TableCell>
-                                  <TableCell className="font-mono text-xs text-muted-foreground">
+                                  <TableCell className="truncate text-sm text-muted-foreground">
                                     {formatDateTime(msg.inviato)}
                                   </TableCell>
                                   <TableCell className="text-center">
