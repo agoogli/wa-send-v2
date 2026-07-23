@@ -137,13 +137,14 @@ export class MessagesService implements OnModuleInit {
     const configTplRow = await this.prisma.configurazione.findUnique({
       where: { chiave: 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' },
     });
-    const templatePattern = configTplRow?.valore || 'Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Maggiori dettagli al link > {{2}}. Cordiali saluti.';
+    const templatePattern = configTplRow?.valore || 'Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{Nominativo}}. A presto.';
 
     const righeData = parsed.map((m) => {
       const val = this.validateMessage(m);
-      const fullUrl = m.link && baseUrl ? `${baseUrl}${m.link.trim()}` : m.link;
       const formattedTesto = m.nominativo
-        ? templatePattern.replace('{{1}}', m.nominativo).replace('{{2}}', fullUrl)
+        ? templatePattern
+            .replace(/\{\{Nominativo\}\}/gi, m.nominativo)
+            .replace(/\{\{1\}\}/g, m.nominativo)
         : m.testo;
 
       return {

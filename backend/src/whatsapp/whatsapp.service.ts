@@ -117,19 +117,39 @@ export class WhatsappService {
 
       const templatePattern = configTplRow.valore;
 
-      // 4. Parametro {{2}} = URL completo concatenando il codice alfanumerico
       const rawLink = (link || '').trim();
-      const param2 = rawLink ? `${baseUrl}${rawLink}` : '';
 
-      // Testo reale completo del messaggio recapitato
+      // Testo reale del messaggio recapitato (sostituisce {{Nominativo}} / {{1}})
       const fullText = templatePattern
-        .replace('{{1}}', param1)
-        .replace('{{2}}', param2);
+        .replace(/\{\{Nominativo\}\}/gi, param1)
+        .replace(/\{\{1\}\}/g, param1);
 
       // 5. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
 
-      // 6. Prepara il payload per l'endpoint SendApp Meta Template
+      // 6. Costruisce i componenti del template Meta (Body + Dynamic URL Button)
+      const components: any[] = [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: param1 },
+          ],
+        },
+      ];
+
+      // Se è presente il codice alfanumerico del link, mappa il parametro {{1}} del pulsante URL (index: 0)
+      if (rawLink) {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [
+            { type: 'text', text: rawLink },
+          ],
+        });
+      }
+
+      // 7. Prepara il payload per l'endpoint SendApp Meta Template
       const payload = {
         apikey: apiKey,
         token: accountToken,
@@ -140,15 +160,7 @@ export class WhatsappService {
           language: {
             code: languageCode,
           },
-          components: [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: param1 },
-                { type: 'text', text: param2 },
-              ],
-            },
-          ],
+          components: components,
         },
       };
 
