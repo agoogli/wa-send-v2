@@ -327,4 +327,31 @@ export class MessagesService implements OnModuleInit {
       this.isProcessing = false;
     }
   }
+
+  /**
+   * Restituisce le statistiche dei messaggi inviati:
+   * - totalSent: numero totale di messaggi in stato INVIATO
+   * - firstSentDate: data del primo messaggio inviato
+   */
+  async getSentStats() {
+    const totalSent = await this.prisma.rigaMessaggio.count({
+      where: { stato: StatoMessaggio.INVIATO },
+    });
+
+    const firstSentMessage = await this.prisma.rigaMessaggio.findFirst({
+      where: { stato: StatoMessaggio.INVIATO },
+      orderBy: [
+        { inviato: 'asc' },
+        { id: 'asc' },
+      ],
+    });
+
+    const firstSentDate = firstSentMessage?.inviato || firstSentMessage?.created || null;
+
+    return {
+      totalSent,
+      firstSentDate,
+    };
+  }
 }
+
