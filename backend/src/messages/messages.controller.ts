@@ -33,6 +33,11 @@ export class MessagesController {
     return this.messagesService.uploadAndParse(html);
   }
 
+  @Get('stats')
+  async getSentStats() {
+    return this.messagesService.getSentStats();
+  }
+
   @Get()
   async findAll(@Query('importId') importId?: string) {
     const id = importId ? parseInt(importId, 10) : undefined;

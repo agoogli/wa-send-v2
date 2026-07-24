@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { LoginForm } from "@/components/LoginForm"
+import { TotalSentStats } from "@/components/TotalSentStats"
 import packageJson from "../package.json"
 
 const API_BASE = "/api"
@@ -117,8 +118,8 @@ function StatusBadge({ stato }: { stato: string }) {
   const Icon = c.icon
 
   return (
-    <Badge variant={c.variant} className="gap-1.5 text-sm py-1 px-2.5 font-medium">
-      <Icon className="h-3.5 w-3.5" />
+    <Badge variant={c.variant} className="gap-1.5 text-sm py-1 px-2.5 font-medium whitespace-nowrap">
+      <Icon className="h-3.5 w-3.5 flex-shrink-0" />
       {c.label}
     </Badge>
   )
@@ -132,6 +133,10 @@ export default function App() {
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null)
 
   const [selectedMessageIds, setSelectedMessageIds] = useState<Record<number, boolean>>({})
+  const [sentStats, setSentStats] = useState<{ totalSent: number; firstSentDate: string | null }>({
+    totalSent: 0,
+    firstSentDate: null,
+  })
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
@@ -198,7 +203,22 @@ export default function App() {
 
 
 
-  // Fetch imports al mount
+  const fetchSentStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/messages/stats`)
+      if (res.ok) {
+        const data = await res.json()
+        setSentStats({
+          totalSent: data.totalSent ?? 0,
+          firstSentDate: data.firstSentDate ?? null,
+        })
+      }
+    } catch {
+      // Backend non disponibile
+    }
+  }, [])
+
+  // Fetch imports e stats al mount
   useEffect(() => {
     if (!isAuthenticated) return
     const fetchImports = async () => {
@@ -218,7 +238,8 @@ export default function App() {
       }
     }
     fetchImports()
-  }, [isAuthenticated])
+    fetchSentStats()
+  }, [isAuthenticated, fetchSentStats])
 
   // Connect to Socket.io for real-time updates
   useEffect(() => {
@@ -232,6 +253,9 @@ export default function App() {
     })
 
     socket.on("messageUpdated", (updatedMsg: RigaMessaggio) => {
+      if (updatedMsg.stato === "INVIATO") {
+        fetchSentStats()
+      }
       setImports((prevImports) =>
         prevImports.map((imp) => {
           if (imp.id === updatedMsg.idImportMessaggio) {
@@ -250,7 +274,7 @@ export default function App() {
     return () => {
       socket.disconnect()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, fetchSentStats])
 
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true)
@@ -306,6 +330,7 @@ export default function App() {
           const data: ImportMessaggio[] = await listRes.json()
           setImports(data)
         }
+        fetchSentStats()
       } else if (res.status === 401) {
         setIsAuthenticated(false)
       }
@@ -334,6 +359,7 @@ export default function App() {
             }
           }
         }
+        fetchSentStats()
       } else if (res.status === 401) {
         setIsAuthenticated(false)
       } else {
@@ -512,9 +538,10 @@ export default function App() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold tracking-tight">Cronologia importazioni</h2>
-            <span className="text-xs text-muted-foreground">
-              Seleziona un import per visualizzarne i dettagli e le statistiche
-            </span>
+            <TotalSentStats
+              totalSent={sentStats.totalSent}
+              firstSentDate={sentStats.firstSentDate}
+            />
           </div>
 
           {imports.length === 0 ? (
@@ -740,7 +767,7 @@ export default function App() {
                               <TableHead className="w-[165px]">Cellulare</TableHead>
                               <TableHead className="w-auto">Testo</TableHead>
                               <TableHead className="w-[155px]">Data Invio</TableHead>
-                              <TableHead className="w-[145px] text-center">Stato</TableHead>
+                              <TableHead className="w-[180px] text-center">Stato</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
