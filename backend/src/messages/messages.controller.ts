@@ -38,6 +38,14 @@ export class MessagesController {
     return this.messagesService.getSentStats();
   }
 
+  @Get('meta-analytics')
+  async getMetaAnalytics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.messagesService.getMetaAnalytics(startDate, endDate);
+  }
+
   @Get()
   async findAll(@Query('importId') importId?: string) {
     const id = importId ? parseInt(importId, 10) : undefined;

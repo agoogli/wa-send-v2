@@ -353,5 +353,12 @@ export class MessagesService implements OnModuleInit {
       firstSentDate,
     };
   }
+
+  /**
+   * Recupera i dati di Analytics Meta per la categoria UTILITY nel periodo specificato.
+   */
+  async getMetaAnalytics(startDate?: string, endDate?: string) {
+    return this.whatsapp.getMetaUtilityAnalytics(startDate, endDate);
+  }
 }
 

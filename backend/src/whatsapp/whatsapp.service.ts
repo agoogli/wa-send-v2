@@ -192,5 +192,97 @@ export class WhatsappService {
       return { success: false, error: errorMsg };
     }
   }
+
+  /**
+   * Effettua una chiamata alle Meta Graph API (conversation_analytics)
+   * per recuperare il numero di messaggi consegnati e i costi stimati
+   * per la categoria 'UTILITY' nel periodo specificato.
+   */
+  async getMetaUtilityAnalytics(startDateStr?: string, endDateStr?: string) {
+    const wabaId = process.env.META_WABA_ID;
+    const token = process.env.META_SYSTEM_USER_TOKEN || process.env.META_ACCESS_TOKEN;
+
+    if (!wabaId || !token || wabaId === 'YOUR_META_WABA_ID' || token === 'YOUR_META_SYSTEM_USER_TOKEN') {
+      return {
+        configured: false,
+        message: 'Variabili META_WABA_ID o META_SYSTEM_USER_TOKEN non configurate nel file .env',
+        cost: 0,
+        count: 0,
+      };
+    }
+
+    try {
+      const now = new Date();
+      const start = startDateStr ? new Date(startDateStr) : new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = endDateStr ? new Date(endDateStr) : new Date();
+
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+
+      const startUnix = Math.floor(start.getTime() / 1000);
+      const endUnix = Math.floor(end.getTime() / 1000);
+
+      const url = `https://graph.facebook.com/v20.0/${wabaId}/conversation_analytics` +
+        `?start=${startUnix}&end=${endUnix}&granularity=DAILY` +
+        `&dimensions=["CONVERSATION_CATEGORY"]` +
+        `&metric_types=["COST","CONVERSATION_COUNT"]`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const resData = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const errorMsg = resData.error?.message || `Errore HTTP ${response.status}`;
+        this.logger.error(`Chiamata Analytics Meta fallita: ${errorMsg}`);
+        return {
+          configured: true,
+          error: errorMsg,
+          cost: 0,
+          count: 0,
+        };
+      }
+
+      let totalCost = 0;
+      let totalCount = 0;
+
+      if (resData.data && Array.isArray(resData.data)) {
+        for (const entry of resData.data) {
+          if (entry.data_points && Array.isArray(entry.data_points)) {
+            for (const dp of entry.data_points) {
+              if (dp.conversation_category === 'UTILITY') {
+                if (typeof dp.cost === 'number') {
+                  totalCost += dp.cost;
+                }
+                if (typeof dp.conversation_count === 'number') {
+                  totalCount += dp.conversation_count;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        configured: true,
+        cost: Math.round(totalCost * 100) / 100,
+        count: totalCount,
+      };
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : 'Errore sconosciuto';
+      this.logger.error(`Eccezione durante chiamata Analytics Meta: ${errorMsg}`);
+      return {
+        configured: true,
+        error: errorMsg,
+        cost: 0,
+        count: 0,
+      };
+    }
+  }
 }
 
