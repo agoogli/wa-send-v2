@@ -1,3 +1,5 @@
+name: wa-send-v2
+
 services:
   db:
     image: docker.io/library/postgres:15-alpine
@@ -6,7 +8,7 @@ services:
     env_file:
       - .env
     ports:
-      - "5432:5432"
+      - "6000:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -17,7 +19,7 @@ services:
     env_file:
       - .env
     ports:
-      - "3000:3000"
+      - "4000:3000"
     depends_on:
       - db
 
@@ -26,7 +28,7 @@ services:
     container_name: wa-send-frontend
     restart: always
     ports:
-      - "80:80"
+      - "8080:80"
     depends_on:
       - backend
 
