@@ -14,8 +14,6 @@ import {
   ChevronUp,
   Trash2,
   LogOut,
-  BarChart3,
-  Receipt,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,21 +37,6 @@ import { TotalSentStats } from "@/components/TotalSentStats"
 import packageJson from "../package.json"
 
 const API_BASE = "/api"
-
-const getFirstDayOfMonth = () => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  return `${year}-${month}-01`
-}
-
-const getTodayDate = () => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  const day = String(now.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
 
 function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "-"
@@ -154,20 +137,6 @@ export default function App() {
     totalSent: 0,
     firstSentDate: null,
   })
-  const [metaStartDate, setMetaStartDate] = useState<string>(getFirstDayOfMonth())
-  const [metaEndDate, setMetaEndDate] = useState<string>(getTodayDate())
-  const [metaAnalytics, setMetaAnalytics] = useState<{
-    configured: boolean
-    cost: number
-    count: number
-    loading: boolean
-    error?: string
-  }>({
-    configured: true,
-    cost: 0,
-    count: 0,
-    loading: false,
-  })
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
@@ -249,28 +218,7 @@ export default function App() {
     }
   }, [])
 
-  const fetchMetaAnalytics = useCallback(async (start: string, end: string) => {
-    setMetaAnalytics((prev) => ({ ...prev, loading: true }))
-    try {
-      const res = await fetch(`${API_BASE}/messages/meta-analytics?startDate=${start}&endDate=${end}`)
-      if (res.ok) {
-        const data = await res.json()
-        setMetaAnalytics({
-          configured: data.configured ?? false,
-          cost: data.cost ?? 0,
-          count: data.count ?? 0,
-          error: data.error,
-          loading: false,
-        })
-      } else {
-        setMetaAnalytics((prev) => ({ ...prev, loading: false }))
-      }
-    } catch {
-      setMetaAnalytics((prev) => ({ ...prev, loading: false }))
-    }
-  }, [])
-
-  // Fetch imports, stats e meta-analytics al mount
+  // Fetch imports e stats al mount
   useEffect(() => {
     if (!isAuthenticated) return
     const fetchImports = async () => {
@@ -291,8 +239,7 @@ export default function App() {
     }
     fetchImports()
     fetchSentStats()
-    fetchMetaAnalytics(metaStartDate, metaEndDate)
-  }, [isAuthenticated, fetchSentStats, fetchMetaAnalytics, metaStartDate, metaEndDate])
+  }, [isAuthenticated, fetchSentStats])
 
   // Connect to Socket.io for real-time updates
   useEffect(() => {
@@ -487,150 +434,60 @@ export default function App() {
       </header>
 
       <main className="w-full md:w-[80%] md:max-w-[80%] mx-auto space-y-6 px-4 md:px-0 py-8">
-        {/* Top Section: Left (Meta Analytics + Upload) & Right (Riepilogo) */}
-        <div className="grid gap-6 md:grid-cols-3 items-stretch">
-          {/* Left Column: 2 Stacked Cards matching Right Card height */}
-          <div className="md:col-span-2 flex flex-col justify-between gap-6">
-            {/* Meta Utility Analytics Card */}
-            <Card className="flex-1 flex flex-col justify-between group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-              <CardHeader className="pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    Insight Meta (Utility)
-                  </CardTitle>
-
-                  {/* Date Range Picker */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground font-medium">Dal:</span>
-                      <input
-                        type="date"
-                        value={metaStartDate}
-                        onChange={(e) => {
-                          setMetaStartDate(e.target.value)
-                          if (e.target.value && metaEndDate) {
-                            fetchMetaAnalytics(e.target.value, metaEndDate)
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg border border-border/60 bg-background/50 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground font-medium">Al:</span>
-                      <input
-                        type="date"
-                        value={metaEndDate}
-                        onChange={(e) => {
-                          setMetaEndDate(e.target.value)
-                          if (metaStartDate && e.target.value) {
-                            fetchMetaAnalytics(metaStartDate, e.target.value)
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg border border-border/60 bg-background/50 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="pt-0">
-                {!metaAnalytics.configured ? (
-                  <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-warning text-xs font-medium flex items-center gap-2">
-                    <span>⚠️</span>
-                    <span>Configura <code>META_WABA_ID</code> e <code>META_SYSTEM_USER_TOKEN</code> nel file .env per visualizzare gli insight.</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 flex flex-col justify-between">
-                      <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                        <Receipt className="h-4 w-4 text-primary" /> Costi stimati (Utility)
-                      </span>
-                      <span className="text-xl font-bold tabular-nums text-foreground mt-1">
-                        {metaAnalytics.loading ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        ) : (
-                          `€ ${metaAnalytics.cost.toFixed(2)}`
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 flex flex-col justify-between">
-                      <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                        <Send className="h-4 w-4 text-primary" /> Messaggi consegnati
-                      </span>
-                      <span className="text-xl font-bold tabular-nums text-foreground mt-1">
-                        {metaAnalytics.loading ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        ) : (
-                          metaAnalytics.count
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {metaAnalytics.error && (
-                  <div className="p-2 rounded-md bg-danger/10 border border-danger/20 text-danger text-[11px] font-medium mt-2">
-                    ⚠️ {metaAnalytics.error}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Upload HTML Card */}
-            <Card className="flex-1 flex flex-col justify-between group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5 text-primary" />
-                  Carica File HTML
-                </CardTitle>
-                <CardDescription>
-                  Seleziona un file HTML contenente la tabella dei messaggi da inviare
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".html,.htm"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      handleUpload(file)
-                    }
-                    e.target.value = ""
-                  }}
-                />
-                <div className="flex items-center gap-4">
-                  <Button
-                    id="upload-button"
-                    variant="outline"
-                    className="relative overflow-hidden cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="h-4 w-4" />
-                    )}
-                    {uploading ? "Caricamento..." : "Scegli file"}
-                  </Button>
-                  {fileName && (
-                    <span className="text-sm text-muted-foreground animate-in slide-in-from-left-2 duration-300">
-                      📄 {fileName}
-                    </span>
+        {/* Upload + Stats Row */}
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Upload Card */}
+          <Card className="md:col-span-2 group relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-primary" />
+                Carica File HTML
+              </CardTitle>
+              <CardDescription>
+                Seleziona un file HTML contenente la tabella dei messaggi da inviare
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".html,.htm"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    handleUpload(file)
+                  }
+                  e.target.value = ""
+                }}
+              />
+              <div className="flex items-center gap-4">
+                <Button
+                  id="upload-button"
+                  variant="outline"
+                  className="relative overflow-hidden"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                  {uploading ? "Caricamento..." : "Scegli file"}
+                </Button>
+                {fileName && (
+                  <span className="text-sm text-muted-foreground animate-in slide-in-from-left-2 duration-300">
+                    📄 {fileName}
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Stats Card (Riepilogo) */}
-          <Card className="md:col-span-1 flex flex-col justify-between">
+          {/* Stats Card */}
+          <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 Riepilogo
