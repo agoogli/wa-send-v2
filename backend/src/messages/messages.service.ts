@@ -137,7 +137,7 @@ export class MessagesService implements OnModuleInit {
     const configTplRow = await this.prisma.configurazione.findUnique({
       where: { chiave: 'TEMPLATE_AVVISO_LIBRI_PRENOTATI' },
     });
-    const templatePattern = configTplRow?.valore || 'Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{Nominativo}}. A presto.';
+    const templatePattern = configTplRow?.valore || 'Gentile cliente, la informiamo che sono disponibili nuovi libri da Lei prenotati per {{1}}. Cordiali saluti.';
 
     const righeData = parsed.map((m) => {
       const val = this.validateMessage(m);

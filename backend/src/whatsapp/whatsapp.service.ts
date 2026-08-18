@@ -123,8 +123,6 @@ export class WhatsappService {
       const fullText = templatePattern
         .replace(/\{\{Nominativo\}\}/gi, param1)
         .replace(/\{\{1\}\}/g, param1);
-
-      // 5. Pulisce il numero di telefono (solo cifre, senza +)
       const cleanPhone = recipient.replace(/[^\d]/g, '');
 
       // 6. Costruisce i componenti del template Meta (Body + Dynamic URL Button)
