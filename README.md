@@ -101,6 +101,61 @@ Stampa le loggate dell'intero pod
 podman pod logs -f my-pod
 ```
 
+### Security
+
+Monitorare le porte in ascolto sull'interfaccia pubblica del server
+
+```
+sudo ss -tulpn
+```
+
+Abilitare l'accesso ssh con sola chiave
+
+```
+mkdir -p ~/.ssh
+vim ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+sudo vim /etc/ssh/sshd_config
+```
+
+Dentro il file settare le righe con i valori seguenti
+
+```
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+```
+
+Poi verificare la sintassi del file con
+
+```
+sudo sshd -t
+sudo systemctl restart sshd
+```
+
+Oppure, se esistono degli override del provider, crearne uno con un nome che inneschi la priorità
+
+```
+sudo bash -c 'cat <<EOF > /etc/ssh/sshd_config.d/00-override.conf
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+EOF'
+sudo systemctl restart sshd
+```
+
+Settare ufw per abilitare solo la porta 22 e bloccare tutto il resto in entrata
+
+```
+sudo pacman -S ufw
+sudo ufw allow 22/tcp
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw enable
+sudo ufw status
+```
+
 ### Primo deploy dei pods (installazione ambiente podman)
 
 Creare una directory 'wa-send-v2' sul server.
