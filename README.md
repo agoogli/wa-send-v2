@@ -101,32 +101,73 @@ Stampa le loggate dell'intero pod
 podman pod logs -f my-pod
 ```
 
-### Deploy pods
+### Primo deploy dei pods (installazione ambiente podman)
 
-Installare i pacchetti necessari:
+Creare una directory 'wa-send-v2' sul server.
+
+Con scp effettuare upload dei files
+
+```
+podman-compose.yml 
+.env
+```
 
 ```
 sudo pacman -Sy podman podman-compose
 ```
 
-creare una directory deploy sul server.
-Dentro inserire il file .env . Per la struttura del file, fare riferimento a .env.example nella root di questo progetto
-Spostare sul server il file podman-compose.yml che richiama le immagini necessarie al deploy
+Se torna errore relativo al file system btrfs
 
-Una volta posizionati entrambi i files:
+```
+sudo pacman -S fuse-overlayfs
+podman system reset --force
+mkdir -p ~/.config/containers
+cat << 'EOF' > ~/.config/containers/storage.conf
+[storage]
+driver = "overlay"
+[storage.options.overlay]
+mount_program = "/usr/bin/fuse-overlayfs"
+EOF
+```
+
+A questo punto il comando dovrebbe funzionare
+
+```
+podman info
+```
+
+Entrare nella directory wa-send-v2 e dare i comandi
 
 ```
 podman-compose pull
+podman-compose up -d
 ```
+
+Se dovessero mancare i moduli del kernel caricati per la rete podman:
+
+```
+sudo modprobe bridge
+sudo modprobe veth
+echo -e "bridge\nveth" | sudo tee /etc/modules-load.d/podman-network.conf
+```
+
+e ripetere
 
 ```
 podman-compose up -d
 ```
 
-Per abbattere l'intero pod con i containers
+Installare infine
 
 ```
-podman-compose down
+sudo pacman -S cloudflared
+sudo cloudflared service install '...KEY...'
+```
+
+Controllare il corretto avvio dei pods
+
+```
+podman logs -f wa-send-backend
 ```
 
 ## Come aggiornare il codice (Backend e Frontend) in produzione
