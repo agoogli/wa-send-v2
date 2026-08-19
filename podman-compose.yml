@@ -8,7 +8,7 @@ services:
     env_file:
       - .env
     ports:
-      - "6000:5432"
+      - "127.0.0.1:6000:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -19,7 +19,7 @@ services:
     env_file:
       - .env
     ports:
-      - "4000:3000"
+      - "127.0.0.1:4000:3000"
     depends_on:
       - db
 
@@ -28,7 +28,7 @@ services:
     container_name: wa-send-frontend
     restart: always
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - backend
 
